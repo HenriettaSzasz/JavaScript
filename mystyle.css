@@ -1,0 +1,43 @@
+.main{
+    padding: 50px;
+}
+
+.row{
+    display : flex;
+    flex-flow: row;
+    justify-content: center;
+}
+
+.square{
+    margin: 0;
+    padding: 0;
+    height : 100px;
+    width : 100px;
+    border: 2px solid black;
+    flex: 0 0 auto;
+}
+
+.white.square{
+    background-color: whitesmoke;
+}
+
+.black.square{
+    background-color: gray;
+}
+
+.counter{
+    display: flex;
+    justify-content: center;
+}
+
+.counter p{
+    font-size: 500%;
+    font-family: monospace;
+    font-weight: bold;
+    color: gray;
+    float: 0 0 auto;
+}
+
+.piece{
+    background-color: rosybrown;
+}
