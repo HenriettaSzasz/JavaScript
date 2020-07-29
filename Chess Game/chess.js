@@ -235,7 +235,7 @@ class Piece {
 
         img.classList.add('image')
 
-        let src = color + '_' + className + '.png'
+        let src = 'https://github.com/HenriettaSzasz/JavaScript/blob/master/Chess%20Game/images/' + color + '_' + className + '.png' + '?raw=true'
         let alt = color + ' ' + className
 
         img.setAttribute('src', src)
