@@ -44,6 +44,8 @@ class Table {
 
         this.createSquares()
         this.lastSelected = null
+        this.firstMove = true
+        this.round = 'white'
     }
 
     createSquares() {
@@ -81,48 +83,64 @@ class Table {
 
                 this.table[i][j] = row.appendChild(div)
 
-                this.table[i][j].addEventListener('click', this.highlightSelected.bind(this))
-            
+                this.table[i][j].addEventListener('click', this.select.bind(this))
+
                 this.piece[i][j] = null
             }
         }
     }
 
-    highlightSelected(event) {
+    select(event) {
         let i = event.currentTarget.getAttribute('data-i')
         let j = event.currentTarget.getAttribute('data-j')
 
         let selectedPiece = this.piece[i][j]
-        this.removeHighlights()
+        let selectedSquare = this.table[i][j]
+        let isLegalMove = false
+        let isYourPiece = false
 
-        if (this.lastSelected != null && selectedPiece == null) {
+        if(selectedPiece != null && selectedPiece.node.classList.contains(this.round)){
+            isYourPiece = true
+        }
+
+        if (selectedSquare.firstChild != null && selectedSquare.firstChild.classList.contains('highlighted') || selectedSquare.classList.contains('highlighted')) {
+            isLegalMove = true
+        }
+
+        this.removeHighlights()
+        if (this.lastSelected != null && (selectedPiece == null || selectedPiece != null && isYourPiece == false)) {
             this.lastSelected.style.backgroundColor = 'transparent'
 
             let lastI = this.lastSelected.parentNode.getAttribute('data-i')
             let lastJ = this.lastSelected.parentNode.getAttribute('data-j')
 
-            this.movePiece(lastI, lastJ, i, j)
+            if (isLegalMove == true) {
+                this.movePiece(lastI, lastJ, i, j)
+                this.round == 'black' ? application.table.firstMove = false : null
+                this.round == 'white' ? this.round = 'black' : this.round = 'white'
+            }
 
             this.lastSelected = null
         }
-        else if (selectedPiece != null) {
-            if(this.lastSelected != null){
+        else if (selectedPiece != null && isYourPiece == true) {
+            if (this.lastSelected != null) {
                 this.lastSelected.style.backgroundColor = 'transparent'
             }
             this.lastSelected = event.currentTarget.firstChild
+            
             event.currentTarget.firstChild.style.backgroundColor = 'yellow'
 
-            let moveTo = this.piece[+i][+j].canMove(+i,+j, this.piece)
+            let moveTo = this.piece[+i][+j].canMove(+i, +j, this.piece, this.firstMove, this.round)
 
             this.highlightMove(moveTo)
         }
     }
 
-    highlightMove(positions){
+    highlightMove(positions) {
         positions.forEach(element => {
             let i = element[0]
             let j = element[1]
-            if(this.table[i][j].firstChild == null){
+            if (this.table[i][j].firstChild == null) {
                 let div = document.createElement('div')
 
                 div.classList.add('highlighted')
@@ -131,16 +149,31 @@ class Table {
 
                 div.style.backgroundColor = 'rgba(255, 255, 0, 0.5)'
 
-                this.table[i][j].appendChild(div)  
+                this.table[i][j].appendChild(div)
+            }
+            else if(this.table[i][j].firstChild.classList.contains(this.round) == false){
+
+                this.table[i][j].classList.add('highlighted')
+
+                this.table[i][j].classList.add('red')
+
+                this.table[i][j].style.backgroundColor = 'rgba(255, 0, 0, 0.5)'
             }
         });
     }
 
-    removeHighlights(){
+    removeHighlights() {
         let elements = document.getElementsByClassName('highlighted')
 
-        while(elements.length != 0){
-            elements[0].parentNode.removeChild(elements[0])
+        while (elements.length != 0) {
+            if(elements[0].classList.contains('red')){
+                elements[0].style.backgroundColor = 'transparent'
+                elements[0].classList.remove('red')
+                elements[0].classList.remove('highlighted')
+            }
+            else{
+                elements[0].parentNode.removeChild(elements[0])
+            }
         }
     }
 
@@ -171,18 +204,28 @@ class Table {
         }
     }
 
-    movePiece(fromI, fromJ, toI, toJ){
+    movePiece(fromI, fromJ, toI, toJ) {
         let child = this.table[fromI][fromJ].removeChild(this.table[fromI][fromJ].firstChild)
-    
+
+        if(this.table[toI][toJ].firstChild != null){
+            this.table[toI][toJ].removeChild(this.table[toI][toJ].firstChild)
+        }
+
         this.table[toI][toJ].appendChild(child)
+
+        this.piece[toI][toJ] = this.piece[fromI][fromJ]
+
+        this.piece[fromI][fromJ] = null
     }
 }
 
 class Piece {
     constructor(square = document.body, color) {
-        let className = this.constructor.name
+        let className = this.constructor.name.toLowerCase()
 
         let div = document.createElement('div')
+
+        div.classList.add(color)
 
         div.classList.add('piece')
 
@@ -201,153 +244,174 @@ class Piece {
         this.node.appendChild(img)
     }
 
-    moveDiag(i,j,pieces){
+    moveDiag(i, j, pieces) {
         let moves = []
-        for(let l = i + 1,k = j + 1; l < 8 && k < 8; l++, k++){
-            if(pieces[l][k] == null){
-                moves.push([l, k])
-            }
-            else{
-               break;
-            }
+        for (let l = i + 1, k = j + 1; l < 8 && k < 8; l++, k++) {
+            moves.push([l, k])
+            if (pieces[l][k] != null)
+                break
         }
-        for(let l = i - 1,k = j + 1; l >= 0 && k < 8; l--, k++){
-            if(pieces[l][k] == null){
-                moves.push([l, k])
-            }
-            else{
-                break;
-            }
+        for (let l = i - 1, k = j + 1; l >= 0 && k < 8; l--, k++) {
+            moves.push([l, k])
+            if (pieces[l][k] != null) 
+                break
         }
-        for(let l = i - 1,k = j - 1; l >= 0 && k >= 0; l--, k--){
-            if(pieces[l][k] == null){
-                moves.push([l, k])
-            }
-            else{
-                break;
-            }
+        for (let l = i - 1, k = j - 1; l >= 0 && k >= 0; l--, k--) {
+            moves.push([l, k])
+            if (pieces[l][k] != null) 
+                break
         }
-        for(let l = i + 1,k = j - 1; l < 8 && k >= 0; l++, k--){
-            if(pieces[l][k] == null){
-                moves.push([l, k])
-            }
-            else{
-                break;
-            }
+        for (let l = i + 1, k = j - 1; l < 8 && k >= 0; l++, k--) {
+            moves.push([l, k])
+            if (pieces[l][k] != null) 
+                break
         }
         return moves
     }
 
-    moveLine(i,j,pieces){
+    moveLine(i, j, pieces) {
         let moves = []
-        for(let k = j + 1; k < 8; k++){
-            if(pieces[i][k] == null){
-                moves.push([i, k])
-            }
-            else{
-                break;
-            }
+        for (let k = j + 1; k < 8; k++) {
+            moves.push([i, k])
+            if (pieces[i][k] != null)
+                break
         }
-        for(let k = i + 1; k < 8; k++){
-            if(pieces[k][j] == null){
-                moves.push([k, j])
-            }
-            else{
+        for (let k = i + 1; k < 8; k++) { 
+            moves.push([k, j])
+            if (pieces[k][j] != null) 
                 break;
-            }
         }
-        for(let k = j - 1; k >= 0; k--){
-            if(pieces[i][k] == null){
-                moves.push([i, k])
-            }
-            else{
-                break;
-            }
+        for (let k = j - 1; k >= 0; k--) {
+            moves.push([i, k])
+            if (pieces[i][k] != null)
+                break
         }
-        for(let k = i - 1; k >= 0; k--){
-            if(pieces[k][j] == null){
-                moves.push([k, j])
-            }
-            else{
-                break;
-            }
+        for (let k = i - 1; k >= 0; k--) {
+            moves.push([k, j])
+            if (pieces[k][j] != null) 
+                break
         }
         return moves
     }
 }
 
 class Queen extends Piece {
-    canMove(i, j, pieces){
-        return this.moveDiag(i,j,pieces).concat(this.moveLine(i,j,pieces))
+    canMove(i, j, pieces) {
+        return this.moveDiag(i, j, pieces).concat(this.moveLine(i, j, pieces))
     }
 }
 
 class King extends Piece {
-    canMove(i, j, pieces){
+    canMove(i, j, pieces) {
         let moves = []
-        if(j < 7 && pieces[i][j+1] == null){
+        if (j < 7) {
             moves.push([i, j + 1])
         }
-        if(j > 0 && pieces[i][j-1] == null){
+        if (j > 0) {
             moves.push([i, j - 1])
         }
-        if(i < 7 && pieces[i+1][j] == null){
+        if (i < 7) {
             moves.push([i + 1, j])
         }
-        if(i > 0 && pieces[i-1][j] == null){
+        if (i > 0) {
             moves.push([i - 1, j])
+        }
+        if (j < 7 && i < 7) {
+            moves.push([i + 1, j + 1])
+        }
+        if (j > 0 && i > 0) {
+            moves.push([i - 1, j - 1])
+        }
+        if (i < 7 && j > 0) {
+            moves.push([i + 1, j - 1])
+        }
+        if (i > 0 && j < 7) {
+            moves.push([i - 1, j + 1])
         }
         return moves
     }
 }
 
 class Bishop extends Piece {
-    canMove(i, j, pieces){        
-        return this.moveDiag(i,j,pieces)
+    canMove(i, j, pieces) {
+        return this.moveDiag(i, j, pieces)
     }
 }
 
 class Knight extends Piece {
-    canMove(i, j, pieces){
+    canMove(i, j, pieces) {
         let moves = []
-        if(i < 7 && j < 6 && pieces[i+1][j+2] == null){
+        if (i < 7 && j < 6) {
             moves.push([i + 1, j + 2])
         }
-        if(i > 0 && j < 6 && pieces[i-1][j+2] == null){
+        if (i > 0 && j < 6) {
             moves.push([i - 1, j + 2])
         }
-        if(i < 7 && j > 1 && pieces[i+1][j-2] == null){
+        if (i < 7 && j > 1) {
             moves.push([i + 1, j - 2])
         }
-        if(i > 0 && j > 1 && pieces[i-1][j-2] == null){
+        if (i > 0 && j > 1) {
             moves.push([i - 1, j - 2])
+        }
+        if (j < 7 && i < 6) {
+            moves.push([i + 2, j + 1])
+        }
+        if (j > 0 && i < 6) {
+            moves.push([i + 2, j - 1])
+        }
+        if (j < 7 && i > 1) {
+            moves.push([i - 2, j + 1])
+        }
+        if (j > 0 && i > 1) {
+            moves.push([i - 2, j - 1])
         }
         return moves
     }
 }
 
 class Rook extends Piece {
-    canMove(i, j, pieces){
-        return this.moveLine(i,j,pieces)
+    canMove(i, j, pieces) {
+        return this.moveLine(i, j, pieces)
     }
 }
 
 class Pawn extends Piece {
-    canMove(i, j, pieces){
+    canMove(i, j, pieces, firstMove, round) {
         let moves = []
-        if(j < 7 && pieces[i][j+1] == null){
+        if (j < 7 && pieces[i][j + 1] == null && round == 'white') {
             moves.push([i, j + 1])
-            if(j < 6 && pieces[i][j+2] == null){
+        }
+        if (j > 0 && pieces[i][j - 1] == null && round == 'black') {
+            moves.push([i, j - 1])
+        }
+        if (j < 7 && i < 7 && pieces[i + 1][j + 1] != null  && round == 'white') {
+            moves.push([i + 1, j + 1])
+        }
+        if (j > 0 && i < 7 && pieces[i + 1][j - 1] != null && round == 'black') {
+            moves.push([i + 1, j - 1])
+        }
+        if (j < 7 && i > 0 && pieces[i - 1][j + 1] != null && round == 'white') {
+            moves.push([i - 1, j + 1])
+        }
+        if (j > 0 && i > 0 && pieces[i - 1][j - 1] != null && round == 'black') {
+            moves.push([i - 1, j - 1])
+        }
+        if (firstMove) {
+            if (j < 6 && pieces[i][j + 2] == null) {
                 moves.push([i, j + 2])
             }
-        }
-        if(j > 0 && pieces[i][j-1] == null){
-            moves.push([i, j - 1])
-            if(j > 1 && pieces[i][j-2] == null){
-                moves.push([i,j - 2])
+            if (j > 1 && pieces[i][j - 2] == null) {
+                moves.push([i, j - 2])
             }
         }
         return moves
+    }
+}
+
+class Player {
+    constructor(name, color) {
+        this.name = name
+        this.color = color
     }
 }
 
@@ -364,11 +428,14 @@ class App {
 
         this.timer = new Timer(this.main)
 
-        this.timer.setMaxTime(1)
+        this.timer.setMaxTime(0)
 
         this.timer.startTimer(this.table.node)
 
         setTimeout(() => { this.table.createPieces() }, 1000 * this.timer.maxTime + 2000)
+
+        this.firstPlayer = new Player('firstPlayer', 'white')
+        this.secondPlayer = new Player('secondPlayer', 'black')
     }
 }
 

@@ -1,5 +1,5 @@
 .main{
-    padding: 50px;
+    padding: 2em;
 }
 
 .row{
@@ -11,8 +11,8 @@
 .square{
     margin: 0;
     padding: 0;
-    height : 100px;
-    width : 100px;
+    height : 5em;
+    width : 5em;
     border: 2px solid black;
     flex: 0 0 auto;
     display: flex;
@@ -41,6 +41,6 @@
 }
 
 .image{
-    max-height: 100px;
+    max-height: 5em;
     width: auto;
 }
