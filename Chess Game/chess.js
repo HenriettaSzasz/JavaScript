@@ -16,13 +16,14 @@ class Timer {
     }
 
     startTimer(table) {
+        const event = new Event('timesUp');
         let i = this.maxTime
         this.timer = setInterval(() => {
             this.node.getElementsByTagName('p')[0].innerHTML = i--;
             if (i < 0) {
                 this.stopTimer()
-                table.style.display = 'block'
                 this.node.style.display = 'none'
+                table.dispatchEvent(event)
             }
         }, 1000)
     }
@@ -40,12 +41,22 @@ class Table {
 
         this.node = main.appendChild(div)
 
+        this.node.addEventListener('timesUp', () => {
+            this.createPieces()
+            this.createBoard(main)
+
+            this.node.style.display = 'block'
+            this.board.style.display = 'flex'
+        })
+
         this.node.style.display = 'none'
 
         this.createSquares()
         this.lastSelected = null
-        this.firstMove = true
+
         this.round = 'white'
+
+        this.kingsPosition = { 'white': [4, 0], 'black': [4, 7] }
     }
 
     createSquares() {
@@ -91,6 +102,7 @@ class Table {
     }
 
     select(event) {
+
         let i = event.currentTarget.getAttribute('data-i')
         let j = event.currentTarget.getAttribute('data-j')
 
@@ -99,7 +111,7 @@ class Table {
         let isLegalMove = false
         let isYourPiece = false
 
-        if(selectedPiece != null && selectedPiece.node.classList.contains(this.round)){
+        if (selectedPiece != null && selectedPiece.node.classList.contains(this.round)) {
             isYourPiece = true
         }
 
@@ -111,13 +123,39 @@ class Table {
         if (this.lastSelected != null && (selectedPiece == null || selectedPiece != null && isYourPiece == false)) {
             this.lastSelected.style.backgroundColor = 'transparent'
 
-            let lastI = this.lastSelected.parentNode.getAttribute('data-i')
-            let lastJ = this.lastSelected.parentNode.getAttribute('data-j')
-
             if (isLegalMove == true) {
-                this.movePiece(lastI, lastJ, i, j)
-                this.round == 'black' ? application.table.firstMove = false : null
-                this.round == 'white' ? this.round = 'black' : this.round = 'white'
+                if (this.piece[this.lastI][this.lastJ] instanceof King) {
+                    this.kingsPosition[this.round] = [i, j]
+                }
+                let currentPiece = null
+                if(this.piece[i][j] != null)
+                    currentPiece = Object.assign(Object.create(Object.getPrototypeOf(this.piece[i][j])), this.piece[i][j])
+                let lastPiece = this.piece[this.lastI][this.lastJ]
+
+                this.piece[i][j] = lastPiece
+                this.piece[this.lastI][this.lastJ] = null
+
+
+                if (this.check() == true) {
+                    this.piece[i][j].firstMove = false
+
+
+                    this.movePiece(this.lastI, this.lastJ, i, j)
+
+                    if (currentPiece != null && currentPiece instanceof King) {
+                        this.round == 'white' ? this.firstPlayer.won() : this.secondPlayer.won()
+                    }
+                    else if (currentPiece != null){
+                        this.round == 'white' ? this.firstPlayer.addScore(currentPiece.getPoints()) : this.secondPlayer.addScore(currentPiece.getPoints())
+                    }
+
+                    this.changePlayer()
+                }
+                else {
+                    this.kingsPosition[this.round] = [this.lastI, this.lastJ]
+                    this.piece[i][j] = currentPiece
+                    this.piece[this.lastI][this.lastJ] = lastPiece
+                }
             }
 
             this.lastSelected = null
@@ -126,14 +164,50 @@ class Table {
             if (this.lastSelected != null) {
                 this.lastSelected.style.backgroundColor = 'transparent'
             }
-            this.lastSelected = event.currentTarget.firstChild
-            
+            this.lastSelected = this.piece[i][j].node
+
+            this.lastI = i
+            this.lastJ = j
+
             event.currentTarget.firstChild.style.backgroundColor = 'yellow'
 
-            let moveTo = this.piece[+i][+j].canMove(+i, +j, this.piece, this.firstMove, this.round)
+            let moveTo = this.piece[i][j].canMove(+i, +j, this.piece, this.firstMove, this.round)
 
             this.highlightMove(moveTo)
         }
+    }
+
+    check() {
+        let oponent = ''
+        this.round == 'white' ? oponent = 'black' : oponent = 'white'
+        for (let i = 0; i < 8; i++) {
+            for (let j = 0; j < 8; j++) {
+                let element = this.piece[i][j]
+                if (element != null && element.node.classList.contains(oponent)) {
+                    let moves = element.canMove(i, j, this.piece, this.firstMove, oponent)
+                    let check = false
+                    moves.forEach(el => {
+                        if (el[0] == this.kingsPosition[this.round][0] && el[1] == this.kingsPosition[this.round][1]) {
+                            check = true
+                        }
+                    })
+                    if (check) {
+                        return false
+                    }
+                }
+            }
+        }
+        return true
+    }
+
+    movePiece(fromI, fromJ, toI, toJ) {
+        let child = this.table[fromI][fromJ].removeChild(this.table[fromI][fromJ].firstChild)
+
+        if (this.table[toI][toJ].firstChild != null) {
+            this.table[toI][toJ].removeChild(this.table[toI][toJ].firstChild)
+        }
+
+        this.table[toI][toJ].appendChild(child)
     }
 
     highlightMove(positions) {
@@ -151,7 +225,7 @@ class Table {
 
                 this.table[i][j].appendChild(div)
             }
-            else if(this.table[i][j].firstChild.classList.contains(this.round) == false){
+            else if (this.table[i][j].firstChild.classList.contains(this.round) == false) {
 
                 this.table[i][j].classList.add('highlighted')
 
@@ -166,12 +240,15 @@ class Table {
         let elements = document.getElementsByClassName('highlighted')
 
         while (elements.length != 0) {
-            if(elements[0].classList.contains('red')){
-                elements[0].style.backgroundColor = 'transparent'
+            if (elements[0].classList.contains('red')) {
+                if (elements[0].classList.contains('white'))
+                    elements[0].style.backgroundColor = 'whitesmoke'
+                if (elements[0].classList.contains('black'))
+                    elements[0].style.backgroundColor = 'gray'
                 elements[0].classList.remove('red')
                 elements[0].classList.remove('highlighted')
             }
-            else{
+            else {
                 elements[0].parentNode.removeChild(elements[0])
             }
         }
@@ -204,18 +281,33 @@ class Table {
         }
     }
 
-    movePiece(fromI, fromJ, toI, toJ) {
-        let child = this.table[fromI][fromJ].removeChild(this.table[fromI][fromJ].firstChild)
+    createBoard(main = document.body) {
+        let div = document.createElement('div')
 
-        if(this.table[toI][toJ].firstChild != null){
-            this.table[toI][toJ].removeChild(this.table[toI][toJ].firstChild)
+        div.classList.add('board')
+
+        this.board = main.appendChild(div)
+
+        this.board.style.display = 'none'
+
+        this.firstPlayer = new Player(this.board, 'firstPlayer', 'white')
+        this.secondPlayer = new Player(this.board, 'secondPlayer', 'black')
+
+        this.firstPlayer.node.style.transform = 'scale(1.2)'
+        this.secondPlayer.node.style.transform = 'scale(0.9)'
+    }
+
+    changePlayer() {
+        if (this.round == 'white') {
+            this.round = 'black'
+            this.firstPlayer.node.style.transform = 'scale(0.8)'
+            this.secondPlayer.node.style.transform = 'scale(1.2)'
         }
-
-        this.table[toI][toJ].appendChild(child)
-
-        this.piece[toI][toJ] = this.piece[fromI][fromJ]
-
-        this.piece[fromI][fromJ] = null
+        else {
+            this.round = 'white'
+            this.secondPlayer.node.style.transform = 'scale(0.9)'
+            this.firstPlayer.node.style.transform = 'scale(1.2)'
+        }
     }
 }
 
@@ -253,17 +345,17 @@ class Piece {
         }
         for (let l = i - 1, k = j + 1; l >= 0 && k < 8; l--, k++) {
             moves.push([l, k])
-            if (pieces[l][k] != null) 
+            if (pieces[l][k] != null)
                 break
         }
         for (let l = i - 1, k = j - 1; l >= 0 && k >= 0; l--, k--) {
             moves.push([l, k])
-            if (pieces[l][k] != null) 
+            if (pieces[l][k] != null)
                 break
         }
         for (let l = i + 1, k = j - 1; l < 8 && k >= 0; l++, k--) {
             moves.push([l, k])
-            if (pieces[l][k] != null) 
+            if (pieces[l][k] != null)
                 break
         }
         return moves
@@ -276,9 +368,9 @@ class Piece {
             if (pieces[i][k] != null)
                 break
         }
-        for (let k = i + 1; k < 8; k++) { 
+        for (let k = i + 1; k < 8; k++) {
             moves.push([k, j])
-            if (pieces[k][j] != null) 
+            if (pieces[k][j] != null)
                 break;
         }
         for (let k = j - 1; k >= 0; k--) {
@@ -288,7 +380,7 @@ class Piece {
         }
         for (let k = i - 1; k >= 0; k--) {
             moves.push([k, j])
-            if (pieces[k][j] != null) 
+            if (pieces[k][j] != null)
                 break
         }
         return moves
@@ -298,6 +390,9 @@ class Piece {
 class Queen extends Piece {
     canMove(i, j, pieces) {
         return this.moveDiag(i, j, pieces).concat(this.moveLine(i, j, pieces))
+    }
+    getPoints() {
+        return 9
     }
 }
 
@@ -336,6 +431,9 @@ class Bishop extends Piece {
     canMove(i, j, pieces) {
         return this.moveDiag(i, j, pieces)
     }
+    getPoints() {
+        return 3
+    }
 }
 
 class Knight extends Piece {
@@ -367,15 +465,25 @@ class Knight extends Piece {
         }
         return moves
     }
+    getPoints() {
+        return 3
+    }
 }
 
 class Rook extends Piece {
     canMove(i, j, pieces) {
         return this.moveLine(i, j, pieces)
     }
+    getPoints() {
+        return 5
+    }
 }
 
 class Pawn extends Piece {
+    constructor(square = document.body, color) {
+        super(square, color)
+        this.firstMove = true
+    }
     canMove(i, j, pieces, firstMove, round) {
         let moves = []
         if (j < 7 && pieces[i][j + 1] == null && round == 'white') {
@@ -384,7 +492,7 @@ class Pawn extends Piece {
         if (j > 0 && pieces[i][j - 1] == null && round == 'black') {
             moves.push([i, j - 1])
         }
-        if (j < 7 && i < 7 && pieces[i + 1][j + 1] != null  && round == 'white') {
+        if (j < 7 && i < 7 && pieces[i + 1][j + 1] != null && round == 'white') {
             moves.push([i + 1, j + 1])
         }
         if (j > 0 && i < 7 && pieces[i + 1][j - 1] != null && round == 'black') {
@@ -396,7 +504,7 @@ class Pawn extends Piece {
         if (j > 0 && i > 0 && pieces[i - 1][j - 1] != null && round == 'black') {
             moves.push([i - 1, j - 1])
         }
-        if (firstMove) {
+        if (this.firstMove) {
             if (j < 6 && pieces[i][j + 2] == null) {
                 moves.push([i, j + 2])
             }
@@ -406,12 +514,41 @@ class Pawn extends Piece {
         }
         return moves
     }
+    getPoints() {
+        return 1
+    }
 }
 
 class Player {
-    constructor(name, color) {
+    constructor(board = document.body, name, color) {
         this.name = name
         this.color = color
+        this.score = 0
+
+
+        let div = document.createElement('div')
+
+        div.classList.add('player')
+
+        div.classList.add(color)
+
+        this.p = document.createElement('p')
+
+        this.p.innerText = this.score
+
+        div.appendChild(this.p)
+
+        this.node = board.appendChild(div)
+    }
+
+    addScore(points) {
+        this.score += points
+        this.p.innerText = this.score
+    }
+
+    won() {
+        this.p.innerText = 'WINNER'
+        application.main.dispatchEvent(new Event('endGame'))
     }
 }
 
@@ -422,6 +559,16 @@ class App {
         div.classList.add('main')
 
         this.main = document.body.appendChild(div)
+
+        this.main.addEventListener('endGame', () => {
+            if (confirm('Restart game?')) {
+                this.main.removeChild(this.table.node)
+                this.main.removeChild(this.table.board)
+                this.table = new Table(this.main)
+                this.table.createBoard(this.main)
+                this.timer.startTimer(this.table.node)
+            }
+        })
     }
     startApp() {
         this.table = new Table(this.main)
@@ -431,11 +578,6 @@ class App {
         this.timer.setMaxTime(0)
 
         this.timer.startTimer(this.table.node)
-
-        setTimeout(() => { this.table.createPieces() }, 1000 * this.timer.maxTime + 2000)
-
-        this.firstPlayer = new Player('firstPlayer', 'white')
-        this.secondPlayer = new Player('secondPlayer', 'black')
     }
 }
 

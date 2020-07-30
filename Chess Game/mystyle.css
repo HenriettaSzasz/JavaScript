@@ -37,10 +37,41 @@
     font-family: monospace;
     font-weight: bold;
     color: gray;
-    float: 0 0 auto;
+    flex: 0 0 auto;
 }
 
 .image{
     max-height: 5em;
     width: auto;
+}
+
+.player{
+    height: 5em;
+    width: 10em;
+    text-align: center;
+    padding-bottom: 2em;
+    box-shadow: 0 20px 25px -6px rgba(0,0,0, 0.5);
+    border-radius: 0.2em;
+}
+
+.player.white{
+    color: gray;
+    background-color: whitesmoke;
+}
+
+.player.black{
+    color: whitesmoke;
+    background-color: gray;
+}
+
+.board{
+    display: flex;
+    justify-content: space-between;
+    padding: 5em;
+}
+
+.player p{
+    font-size: 300%;
+    font-family: monospace;
+    font-weight: bold;
 }
