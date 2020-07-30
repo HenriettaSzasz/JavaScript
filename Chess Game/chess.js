@@ -128,35 +128,38 @@ class Table {
                     this.kingsPosition[this.round] = [i, j]
                 }
                 let currentPiece = null
-                if(this.piece[i][j] != null)
+                if (this.piece[i][j] != null)
                     currentPiece = Object.assign(Object.create(Object.getPrototypeOf(this.piece[i][j])), this.piece[i][j])
-                    
+
                 let lastPiece = null
 
-                if(this.piece[this.lastI][this.lastJ] != null)
+                if (this.piece[this.lastI][this.lastJ] != null)
                     lastPiece = Object.assign(Object.create(Object.getPrototypeOf(this.piece[this.lastI][this.lastJ])), this.piece[this.lastI][this.lastJ])
-                    
+
                 this.piece[i][j] = lastPiece
                 this.piece[this.lastI][this.lastJ] = null
 
 
-                if (this.check() == true) {
+                if (this.check() == false) {
                     this.piece[i][j].firstMove = false
-
 
                     this.movePiece(this.lastI, this.lastJ, i, j)
 
-                    if (currentPiece != null && currentPiece instanceof King) {
+                    if (this.checkMate()) {
                         this.round == 'white' ? this.firstPlayer.won() : this.secondPlayer.won()
                     }
-                    else if (currentPiece != null){
+                    else if (currentPiece != null) {
                         this.round == 'white' ? this.firstPlayer.addScore(currentPiece.getPoints()) : this.secondPlayer.addScore(currentPiece.getPoints())
                     }
 
                     this.changePlayer()
+
                 }
                 else {
-                    this.kingsPosition[this.round] = [this.lastI, this.lastJ]
+                    if (lastPiece instanceof King) {
+                        this.kingsPosition[this.round] = [this.lastI, this.lastJ]
+                    }
+
                     this.piece[i][j] = currentPiece
                     this.piece[this.lastI][this.lastJ] = lastPiece
                 }
@@ -181,6 +184,52 @@ class Table {
         }
     }
 
+    checkMate() {
+        let oponent = ''
+        this.round == 'white' ? oponent = 'black' : oponent = 'white'
+        this.round = oponent
+
+        let i = this.kingsPosition[oponent][0]
+        let j = this.kingsPosition[oponent][1]
+
+        let moves = this.piece[i][j].canMove(i, j, this.piece, this.firstMove, oponent)
+
+        let isCheckMate = true
+        moves.forEach(el => {
+            this.kingsPosition[oponent] = [el[0], el[1]]
+            if (this.check() == false) {
+                isCheckMate = false
+            }
+        })
+        this.kingsPosition[oponent] = [i, j]
+        oponent == 'white' ? this.round = 'black' : this.round = 'white'
+
+        return isCheckMate
+    }
+
+    checkM() {
+        let oponent = ''
+        this.round == 'white' ? oponent = 'black' : oponent = 'white'
+        for (let i = 0; i < 8; i++) {
+            for (let j = 0; j < 8; j++) {
+                let element = this.piece[i][j]
+                if (element != null && element.node.classList.contains(oponent)) {
+                    let moves = element.canMove(i, j, this.piece, this.firstMove, oponent)
+                    let check = false
+                    moves.forEach(el => {
+                        if (el[0] == this.kingsPosition[this.round][0] && el[1] == this.kingsPosition[this.round][1]) {
+                            check = true
+                        }
+                    })
+                    if (check) {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
     check() {
         let oponent = ''
         this.round == 'white' ? oponent = 'black' : oponent = 'white'
@@ -196,12 +245,12 @@ class Table {
                         }
                     })
                     if (check) {
-                        return false
+                        return true
                     }
                 }
             }
         }
-        return true
+        return false
     }
 
     movePiece(fromI, fromJ, toI, toJ) {

@@ -75,3 +75,13 @@
     font-family: monospace;
     font-weight: bold;
 }
+
+@media only screen and (max-width: 600px) {
+    .square {
+      width: 2em;
+      height : 2em;
+    }
+  .image{
+    max-height : 2em;
+  }
+}
