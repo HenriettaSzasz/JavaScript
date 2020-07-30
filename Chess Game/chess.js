@@ -130,8 +130,12 @@ class Table {
                 let currentPiece = null
                 if(this.piece[i][j] != null)
                     currentPiece = Object.assign(Object.create(Object.getPrototypeOf(this.piece[i][j])), this.piece[i][j])
-                let lastPiece = this.piece[this.lastI][this.lastJ]
+                    
+                let lastPiece = null
 
+                if(this.piece[this.lastI][this.lastJ] != null)
+                    lastPiece = Object.assign(Object.create(Object.getPrototypeOf(this.piece[this.lastI][this.lastJ])), this.piece[this.lastI][this.lastJ])
+                    
                 this.piece[i][j] = lastPiece
                 this.piece[this.lastI][this.lastJ] = null
 
