@@ -1,7 +1,3 @@
-.main{
-    padding: 2em;
-}
-
 .row{
     display : flex;
     flex-flow: row;
@@ -48,9 +44,10 @@
 .player{
     height: 5em;
     width: 10em;
-    text-align: center;
-    padding-bottom: 2em;
     box-shadow: 0 20px 25px -6px rgba(0,0,0, 0.5);
+    font-size: 120%;
+    font-family: monospace;
+    font-weight: bold;
     border-radius: 0.2em;
 }
 
@@ -70,10 +67,17 @@
     padding: 5em;
 }
 
-.player p{
-    font-size: 300%;
+.menu{
+    display: flex;
+    justify-content: space-between;
+    padding: 2em 5em;
+}
+
+.button{
     font-family: monospace;
-    font-weight: bold;
+    background-color: transparent;
+    box-shadow: 0 10px 15px -6px rgba(0,0,0, 0.5);
+    border-radius: 0.2em;
 }
 
 @media only screen and (max-width: 600px) {
