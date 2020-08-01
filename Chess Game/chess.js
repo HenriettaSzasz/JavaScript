@@ -158,7 +158,7 @@ class Table {
                         this.lastTakenPiece = currentPiece
                         this.round == 'white' ? this.firstPlayer.addScore(currentPiece.getPoints()) : this.secondPlayer.addScore(currentPiece.getPoints())
                     }
-                    else{
+                    else {
                         this.lastTakenPiece = null
                     }
 
@@ -170,10 +170,9 @@ class Table {
 
                     this.backup.push([this.lastI, this.lastJ, i, j])
 
-                    console.log(this.backup)
-
-
                     localStorage.setItem('savedMoves', JSON.stringify(this.backup))
+
+                    document.getElementsByClassName('undo')[0].disabled = false
                 }
                 else {
                     if (lastPiece instanceof King) {
@@ -283,7 +282,7 @@ class Table {
         if (this.table[toI][toJ].firstChild != null) {
             this.lastTaken = this.table[toI][toJ].removeChild(this.table[toI][toJ].firstChild)
         }
-        else{
+        else {
             this.lastTaken = null
         }
 
@@ -417,7 +416,7 @@ class Table {
     }
 
     undo() {
-        if(this.backup.length == 0)
+        if (this.backup.length == 0)
             return
 
         let fromI = this.backup[this.backup.length - 1][2]
@@ -439,21 +438,22 @@ class Table {
 
         this.round = this.round == 'white' ? 'black' : 'white'
 
-        if(this.lastTaken != null){
+        if (this.lastTaken != null) {
             this.table[fromI][fromJ].appendChild(this.lastTaken)
 
             this.piece[fromI][fromJ] = this.lastTakenPiece
+
+            this[this.lastTakenPiece.color == 'black' ? 'firstPlayer' : 'secondPlayer'].addScore(-this.lastTakenPiece.getPoints())
 
             this.lastTaken = null
             this.lastTakenPiece = null
         }
 
-        alert(typeof this.piece[toI][toJ])
-        if((toJ == 1 || toJ == 6) && this.piece[toI][toJ] instanceof Pawn){
+        if ((toJ == 1 || toJ == 6) && this.piece[toI][toJ] instanceof Pawn) {
             this.piece[toI][toJ].firstMove = true
         }
 
-        this.backup.pop()
+        document.getElementsByClassName('undo')[0].disabled = true
     }
 }
 
@@ -484,60 +484,84 @@ class Piece {
         this.node.appendChild(img)
     }
 
-    moveDiag(i, j, pieces) {
+    moveDiag(i, j, pieces, round) {
         let moves = []
         for (let l = i + 1, k = j + 1; l < 8 && k < 8; l++, k++) {
             moves.push([l, k])
-            if (pieces[l][k] != null)
+            if (pieces[l][k] != null) {
+                if (pieces[l][k].color == round)
+                    moves.pop()
                 break
+            }
         }
         for (let l = i - 1, k = j + 1; l >= 0 && k < 8; l--, k++) {
             moves.push([l, k])
-            if (pieces[l][k] != null)
+            if (pieces[l][k] != null) {
+                if (pieces[l][k].color == round)
+                    moves.pop()
                 break
+            }
         }
         for (let l = i - 1, k = j - 1; l >= 0 && k >= 0; l--, k--) {
             moves.push([l, k])
-            if (pieces[l][k] != null)
+            if (pieces[l][k] != null) {
+                if (pieces[l][k].color == round)
+                    moves.pop()
                 break
+            }
         }
         for (let l = i + 1, k = j - 1; l < 8 && k >= 0; l++, k--) {
             moves.push([l, k])
-            if (pieces[l][k] != null)
+            if (pieces[l][k] != null) {
+                if (pieces[l][k].color == round)
+                    moves.pop()
                 break
+            }
         }
         return moves
     }
 
-    moveLine(i, j, pieces) {
+    moveLine(i, j, pieces, round) {
         let moves = []
         for (let k = j + 1; k < 8; k++) {
             moves.push([i, k])
-            if (pieces[i][k] != null)
+            if (pieces[i][k] != null) {
+                if (pieces[i][k].color == round)
+                    moves.pop()
                 break
+            }
         }
         for (let k = i + 1; k < 8; k++) {
             moves.push([k, j])
-            if (pieces[k][j] != null)
-                break;
+            if (pieces[k][j] != null) {
+                if (pieces[k][j].color == round)
+                    moves.pop()
+                break
+            }
         }
         for (let k = j - 1; k >= 0; k--) {
             moves.push([i, k])
-            if (pieces[i][k] != null)
+            if (pieces[i][k] != null) {
+                if (pieces[i][k].color == round)
+                    moves.pop()
                 break
+            }
         }
         for (let k = i - 1; k >= 0; k--) {
             moves.push([k, j])
-            if (pieces[k][j] != null)
+            if (pieces[k][j] != null) {
+                if (pieces[k][j].color == round)
+                    moves.pop()
                 break
+            }
         }
         return moves
     }
 }
 
 class Queen extends Piece {
-    canMove(i, j, pieces) {
-        return this.moveDiag(i, j, pieces).concat(this.moveLine(i, j, pieces))
+    canMove(i, j, pieces, round) {
+        return this.moveDiag(i, j, pieces, round).concat(this.moveLine(i, j, pieces, round))
     }
     getPoints() {
         return 9
@@ -545,38 +569,46 @@ class Queen extends Piece {
 }
 
 class King extends Piece {
-    canMove(i, j, pieces) {
+    canMove(i, j, pieces, round) {
         let moves = []
         if (j < 7) {
-            moves.push([i, j + 1])
+            if (pieces[i][j + 1] == null || (pieces[i][j + 1] != null && pieces[i][j + 1].color != round))
+                moves.push([i, j + 1])
         }
         if (j > 0) {
-            moves.push([i, j - 1])
+            if (pieces[i][j - 1] == null || (pieces[i][j - 1] != null && pieces[i][j - 1].color != round))
+                moves.push([i, j - 1])
         }
         if (i < 7) {
-            moves.push([i + 1, j])
+            if (pieces[i + 1][j] == null || (pieces[i + 1][j] != null && pieces[i + 1][j].color != round))
+                moves.push([i + 1, j])
         }
         if (i > 0) {
-            moves.push([i - 1, j])
+            if (pieces[i - 1][j] == null || (pieces[i - 1][j] != null && pieces[i - 1][j].color != round))
+                moves.push([i - 1, j])
         }
         if (j < 7 && i < 7) {
-            moves.push([i + 1, j + 1])
+            if (pieces[i][j + 1] == null || (pieces[i][j + 1] != null && pieces[i][j + 1].color != round))
+                moves.push([i, j + 1])
         }
         if (j > 0 && i > 0) {
-            moves.push([i - 1, j - 1])
+            if (pieces[i - 1][j - 1] == null || (pieces[i - 1][j - 1] != null && pieces[i - 1][j - 1].color != round))
+                moves.push([i - 1, j - 1])
         }
         if (i < 7 && j > 0) {
-            moves.push([i + 1, j - 1])
+            if (pieces[i + 1][j - 1] == null || (pieces[i + 1][j - 1] != null && pieces[i + 1][j - 1].color != round))
+                moves.push([i + 1, j - 1])
         }
         if (i > 0 && j < 7) {
-            moves.push([i - 1, j + 1])
+            if (pieces[i - 1][j + 1] == null || (pieces[i - 1][j + 1] != null && pieces[i - 1][j + 1].color != round))
+                moves.push([i - 1, j + 1])
         }
         return moves
     }
 }
 
 class Bishop extends Piece {
-    canMove(i, j, pieces) {
+    canMove(i, j, pieces, round) {
         return this.moveDiag(i, j, pieces)
     }
     getPoints() {
@@ -585,30 +617,30 @@ class Bishop extends Piece {
 }
 
 class Knight extends Piece {
-    canMove(i, j, pieces) {
+    canMove(i, j, pieces, round) {
         let moves = []
-        if (i < 7 && j < 6) {
+        if (i < 7 && j < 6 && (pieces[i + 1][j + 2] == null || (pieces[i + 1][j + 2] != null && pieces[i + 1][j + 2].color != round))) {
             moves.push([i + 1, j + 2])
         }
-        if (i > 0 && j < 6) {
+        if (i > 0 && j < 6 && (pieces[i - 1][j + 2] == null || (pieces[i - 1][j + 2] != null && pieces[i - 1][j + 2].color != round))) {
             moves.push([i - 1, j + 2])
         }
-        if (i < 7 && j > 1) {
+        if (i < 7 && j > 1 && (pieces[i + 1][j - 2] == null || (pieces[i + 1][j - 2] != null && pieces[i + 1][j - 2].color != round))) {
             moves.push([i + 1, j - 2])
         }
-        if (i > 0 && j > 1) {
+        if (i > 0 && j > 1 && (pieces[i - 1][j - 2] == null || (pieces[i - 1][j - 2] != null && pieces[i - 1][j - 2].color != round))) {
             moves.push([i - 1, j - 2])
         }
-        if (j < 7 && i < 6) {
+        if (j < 7 && i < 6 && (pieces[i + 2][j + 1] == null || (pieces[i + 2][j + 1] != null && pieces[i + 2][j + 1].color != round))) {
             moves.push([i + 2, j + 1])
         }
-        if (j > 0 && i < 6) {
+        if (j > 0 && i < 6 && (pieces[i + 2][j - 1] == null || (pieces[i + 2][j - 1] != null && pieces[i + 2][j - 1].color != round))) {
             moves.push([i + 2, j - 1])
         }
-        if (j < 7 && i > 1) {
+        if (j < 7 && i > 1 && (pieces[i - 2][j + 1] == null || (pieces[i - 2][j + 1] != null && pieces[i - 2][j + 1].color != round))) {
             moves.push([i - 2, j + 1])
         }
-        if (j > 0 && i > 1) {
+        if (j > 0 && i > 1 && (pieces[i - 2][j - 1] == null || (pieces[i - 2][j - 1] != null && pieces[i - 2][j - 1].color != round))) {
             moves.push([i - 2, j - 1])
         }
         return moves
@@ -619,8 +651,8 @@ class Knight extends Piece {
 }
 
 class Rook extends Piece {
-    canMove(i, j, pieces) {
-        return this.moveLine(i, j, pieces)
+    canMove(i, j, pieces, round) {
+        return this.moveLine(i, j, pieces, round)
     }
     getPoints() {
         return 5
@@ -771,6 +803,10 @@ class App {
         button = menu.appendChild(document.createElement('button'))
 
         button.classList.add('button')
+
+        button.classList.add('undo')
+
+        button.disabled = true
 
         button.innerText = 'Undo last move'
 
