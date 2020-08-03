@@ -1,29 +1,20 @@
 class Timer {
-    constructor(main = document.body) {
+    constructor($main = $('body')) {
         this.maxTime = 5
 
-        let div = document.createElement('div')
+        this.$node = $('<div>').addClass('counter').appendTo($main)
 
-        div.classList.add('counter')
-
-        let par = document.createElement('p')
-
-        let counter = main.appendChild(div)
-
-        counter.appendChild(par)
-
-        this.node = main.appendChild(counter)
+        $('<p>').appendTo(this.$node)
     }
 
-    startTimer(table) {
-        const event = new Event('timesUp');
+    startTimer($table) {
         let i = this.maxTime
         this.timer = setInterval(() => {
-            this.node.getElementsByTagName('p')[0].innerHTML = i--;
+            this.$node.find('p').text(i--)
             if (i < 0) {
                 this.stopTimer()
-                this.node.style.display = 'none'
-                table.dispatchEvent(event)
+                this.$node.css('display', 'none')
+                $table.trigger('timesUp')
             }
         }, 1000)
     }
@@ -36,26 +27,24 @@ class Timer {
 }
 
 class Table {
-    constructor(main = document.body, backup) {
-        let div = document.createElement('div')
+    constructor($main = $('body'), backup) {
+        this.$node = $('<div>').appendTo($main)
 
-        this.node = main.appendChild(div)
-
-        this.node.addEventListener('timesUp', () => {
+        this.$node.on('timesUp', () => {
             this.createPieces()
-            this.createBoard(main)
+            this.createBoard($main)
 
             if (backup.length > 0)
                 this.doBackup(backup)
 
-            this.node.style.display = 'block'
-            this.board.style.display = 'flex'
+            this.$node.css('display', 'block')
+            this.$board.css('display', 'flex')
         })
 
-        this.node.style.display = 'none'
+        this.$node.css('display', 'none')
 
         this.createSquares()
-        this.lastSelected = null
+        this.$lastSelected = null
 
         this.round = 'white'
 
@@ -75,15 +64,9 @@ class Table {
             this.table[i] = []
             this.piece[i] = []
 
-            let div = document.createElement('div')
-
-            div.classList.add('row')
-
-            let row = this.node.appendChild(div)
+            const $row = $('<div>').addClass('row').appendTo(this.$node)
 
             for (let j = 0; j < 8; j++) {
-                div = document.createElement('div')
-
                 let squareColor = ''
                 if ((i + j) % 2 == 0) {
                     squareColor = 'black'
@@ -92,17 +75,12 @@ class Table {
                     squareColor = 'white'
                 }
 
-                div.classList.add(squareColor)
+                const $square = $('<div>').addClass('square ' + squareColor).attr('data-i', i).attr('data-j', j).appendTo($row)
 
-                div.classList.add('square')
-
-                div.setAttribute('data-i', i)
-
-                div.setAttribute('data-j', j)
-
-                this.table[i][j] = row.appendChild(div)
-
-                this.table[i][j].addEventListener('click', this.select.bind(this))
+                $square.click(() => {
+                    this.select(event)
+                })
+                this.table[i][j] = $square
 
                 this.piece[i][j] = null
             }
@@ -111,26 +89,24 @@ class Table {
 
     select(event) {
 
-        let i = event.currentTarget.getAttribute('data-i')
-        let j = event.currentTarget.getAttribute('data-j')
+        const i = event.currentTarget.getAttribute('data-i')
+        const j = event.currentTarget.getAttribute('data-j')
 
         let selectedPiece = this.piece[i][j]
-        let selectedSquare = this.table[i][j]
+        let $selectedSquare = this.table[i][j]
         let isLegalMove = false
         let isYourPiece = false
 
-        if (selectedPiece != null && selectedPiece.node.classList.contains(this.round)) {
+        if (selectedPiece != null && selectedPiece.color == this.round) {
             isYourPiece = true
         }
 
-        if (selectedSquare.firstChild != null && selectedSquare.firstChild.classList.contains('highlighted') || selectedSquare.classList.contains('highlighted')) {
+        if ($selectedSquare.children().first().hasClass('highlighted') || $selectedSquare.hasClass('highlighted')) {
             isLegalMove = true
         }
 
         this.removeHighlights()
-        if (this.lastSelected != null && (selectedPiece == null || selectedPiece != null && isYourPiece == false)) {
-            this.lastSelected.style.backgroundColor = 'transparent'
-
+        if (this.$lastSelected != null && (selectedPiece == null || selectedPiece != null && isYourPiece == false)) {
             if (isLegalMove == true) {
                 if (this.piece[this.lastI][this.lastJ] instanceof King) {
                     this.kingsPosition[this.round] = [i, j]
@@ -156,7 +132,7 @@ class Table {
                     }
                     else if (currentPiece != null) {
                         this.lastTakenPiece = currentPiece
-                        this.round == 'white' ? this.firstPlayer.addScore(currentPiece.getPoints()) : this.secondPlayer.addScore(currentPiece.getPoints())
+                        this[this.round == 'white' ? 'firstPlayer' : 'secondPlayer'].addScore(currentPiece.getPoints())
                     }
                     else {
                         this.lastTakenPiece = null
@@ -168,11 +144,11 @@ class Table {
 
                     this.backup[0] = [this.round, this.firstPlayer.score, this.secondPlayer.score]
 
-                    this.backup.push([this.lastI, this.lastJ, i, j])
+                    this.backup.push([this.lastI, this.lastJ, i, j, this.lastTakenPiece == null ? null : this.lastTakenPiece.color, this.lastTakenPiece == null ? null : this.lastTakenPiece.constructor.name])
 
                     localStorage.setItem('savedMoves', JSON.stringify(this.backup))
 
-                    document.getElementsByClassName('undo')[0].disabled = false
+                    $('.undo').attr('disabled', false)
                 }
                 else {
                     if (lastPiece instanceof King) {
@@ -184,18 +160,18 @@ class Table {
                 }
             }
 
-            this.lastSelected = null
+            this.$lastSelected = null
         }
         else if (selectedPiece != null && isYourPiece == true) {
-            if (this.lastSelected != null) {
-                this.lastSelected.style.backgroundColor = 'transparent'
+            if (this.$lastSelected != null) {
+                this.$lastSelected.css('backgroundColor', 'transparent')
             }
-            this.lastSelected = this.piece[i][j].node
+            this.$lastSelected = this.piece[i][j].$node
 
             this.lastI = i
             this.lastJ = j
 
-            event.currentTarget.firstChild.style.backgroundColor = 'yellow'
+            this.table[i][j].children().first().addClass('selected').css('backgroundColor', 'yellow')
 
             let moveTo = this.piece[i][j].canMove(+i, +j, this.piece, this.round)
 
@@ -212,7 +188,7 @@ class Table {
 
         for (let i = 0; i < 8; i++) {
             for (let j = 0; j < 8; j++) {
-                if (this.piece[i][j] != null && this.piece[i][j].node.classList.contains(oponent)) {
+                if (this.piece[i][j] != null && this.piece[i][j].$node.hasClass(oponent)) {
                     let moves = this.piece[i][j].canMove(i, j, this.piece, oponent)
 
                     moves.forEach(el => {
@@ -259,7 +235,7 @@ class Table {
         for (let i = 0; i < 8; i++) {
             for (let j = 0; j < 8; j++) {
                 let element = this.piece[i][j]
-                if (element != null && element.node.classList.contains(oponent)) {
+                if (element != null && element.$node.hasClass(oponent)) {
                     let moves = element.canMove(i, j, this.piece, oponent)
                     let check = false
                     moves.forEach(el => {
@@ -277,60 +253,39 @@ class Table {
     }
 
     movePiece(fromI, fromJ, toI, toJ) {
-        let child = this.table[fromI][fromJ].removeChild(this.table[fromI][fromJ].firstChild)
-
-        if (this.table[toI][toJ].firstChild != null) {
-            this.lastTaken = this.table[toI][toJ].removeChild(this.table[toI][toJ].firstChild)
+        if (this.table[toI][toJ].children().length > 0) {
+            this.$lastTaken = this.table[toI][toJ].children().first().remove()
         }
         else {
-            this.lastTaken = null
+            this.$lastTaken = null
         }
 
-        this.table[toI][toJ].appendChild(child)
+        this.table[fromI][fromJ].children().first().remove().appendTo(this.table[toI][toJ])
     }
 
     highlightMove(positions) {
         positions.forEach(element => {
             let i = element[0]
             let j = element[1]
-            if (this.table[i][j].firstChild == null) {
-                let div = document.createElement('div')
-
-                div.classList.add('highlighted')
-
-                div.classList.add('square')
-
-                div.style.backgroundColor = 'rgba(255, 255, 0, 0.5)'
-
-                this.table[i][j].appendChild(div)
+            if (this.table[i][j].children().length == 0) {
+                $('<div>').addClass('highlighted square').css('backgroundColor', 'rgba(255, 255, 0, 0.5)').appendTo(this.table[i][j])
             }
-            else if (this.table[i][j].firstChild.classList.contains(this.round) == false) {
-
-                this.table[i][j].classList.add('highlighted')
-
-                this.table[i][j].classList.add('red')
-
-                this.table[i][j].style.backgroundColor = 'rgba(255, 0, 0, 0.5)'
+            else if (this.piece[i][j].color != this.round) {
+                this.table[i][j].addClass('highlighted red').css('backgroundColor', 'rgba(255, 0, 0, 0.5)')
             }
         });
     }
 
     removeHighlights() {
-        let elements = document.getElementsByClassName('highlighted')
+        $('.selected').css('backgroundColor', 'transparent').removeClass('selected')
 
-        while (elements.length != 0) {
-            if (elements[0].classList.contains('red')) {
-                if (elements[0].classList.contains('white'))
-                    elements[0].style.backgroundColor = 'whitesmoke'
-                if (elements[0].classList.contains('black'))
-                    elements[0].style.backgroundColor = 'gray'
-                elements[0].classList.remove('red')
-                elements[0].classList.remove('highlighted')
-            }
-            else {
-                elements[0].parentNode.removeChild(elements[0])
-            }
-        }
+        $('.highlighted.red.white').css('backgroundColor', 'whitesmoke')
+
+        $('.highlighted.red.black').css('backgroundColor', 'gray')
+
+        $('.highlighted.red').removeClass('highlighted red')
+
+        $('.highlighted').remove()
     }
 
     createPieces() {
@@ -360,32 +315,26 @@ class Table {
         }
     }
 
-    createBoard(main = document.body) {
-        let div = document.createElement('div')
+    createBoard($main = $('body')) {
+        this.$board = $('<div>').addClass('board').css('display', 'node').appendTo($main)
 
-        div.classList.add('board')
+        this.firstPlayer = new Player(this.$board, 'firstPlayer', 'white')
+        this.secondPlayer = new Player(this.$board, 'secondPlayer', 'black')
 
-        this.board = main.appendChild(div)
-
-        this.board.style.display = 'none'
-
-        this.firstPlayer = new Player(this.board, 'firstPlayer', 'white')
-        this.secondPlayer = new Player(this.board, 'secondPlayer', 'black')
-
-        this.firstPlayer.node.style.transform = 'scale(1.2)'
-        this.secondPlayer.node.style.transform = 'scale(0.9)'
+        this.firstPlayer.$node.css('transform', 'scale(1.2)')
+        this.secondPlayer.$node.css('transform', 'scale(0.9)')
     }
 
     changePlayer() {
         if (this.round == 'white') {
             this.round = 'black'
-            this.firstPlayer.node.style.transform = 'scale(0.8)'
-            this.secondPlayer.node.style.transform = 'scale(1.2)'
+            this.firstPlayer.$node.css('transform', 'scale(0.8)')
+            this.secondPlayer.$node.css('transform', 'scale(1.2)')
         }
         else {
             this.round = 'white'
-            this.secondPlayer.node.style.transform = 'scale(0.9)'
-            this.firstPlayer.node.style.transform = 'scale(1.2)'
+            this.secondPlayer.$node.css('transform', 'scale(0.9)')
+            this.firstPlayer.$node.css('transform', 'scale(1.2)')
         }
     }
 
@@ -405,7 +354,6 @@ class Table {
                 this.movePiece(fromI, fromJ, toI, toJ)
                 this.piece[toI][toJ] = this.piece[fromI][fromJ]
                 this.piece[fromI][fromJ] = null
-                this.piece[toI][toJ].firstMove = false
 
                 if (this.piece[toI][toJ] instanceof King) {
                     this.kingsPosition[this.piece[toI][toJ].color] = [toI, toJ]
@@ -413,75 +361,81 @@ class Table {
             }
 
         })
+        if (this.backup.length > 1)
+            $('.undo').attr('disabled', false)
     }
 
     undo() {
-        if (this.backup.length == 0)
-            return
+        this.removeHighlights()
 
-        let fromI = this.backup[this.backup.length - 1][2]
-        let fromJ = this.backup[this.backup.length - 1][3]
-        let toI = this.backup[this.backup.length - 1][0]
-        let toJ = this.backup[this.backup.length - 1][1]
+        const fromI = this.backup[this.backup.length - 1][2]
+        const fromJ = this.backup[this.backup.length - 1][3]
+        const toI = this.backup[this.backup.length - 1][0]
+        const toJ = this.backup[this.backup.length - 1][1]
 
-        let child = this.table[fromI][fromJ].removeChild(this.table[fromI][fromJ].firstChild)
+        const color = this.backup[this.backup.length - 1][4]
+        const type = this.backup[this.backup.length - 1][5]
 
-        this.table[toI][toJ].appendChild(child)
+        this.table[fromI][fromJ].children().first().remove().appendTo(this.table[toI][toJ])
 
         this.piece[toI][toJ] = this.piece[fromI][fromJ]
         this.piece[fromI][fromJ] = null
-        this.piece[toI][toJ].firstMove = false
 
         if (this.piece[toI][toJ] instanceof King) {
             this.kingsPosition[this.piece[toI][toJ].color] = [toI, toJ]
         }
 
-        this.round = this.round == 'white' ? 'black' : 'white'
+        this.changePlayer()
 
-        if (this.lastTaken != null) {
-            this.table[fromI][fromJ].appendChild(this.lastTaken)
-
-            this.piece[fromI][fromJ] = this.lastTakenPiece
-
-            this[this.lastTakenPiece.color == 'black' ? 'firstPlayer' : 'secondPlayer'].addScore(-this.lastTakenPiece.getPoints())
-
-            this.lastTaken = null
-            this.lastTakenPiece = null
+        if (color != null) {
+            switch (type) {
+                case 'King':
+                    this.piece[fromI][fromJ] = new King(this.table[fromI][fromJ], color)
+                    break;
+                case 'Queen':
+                    this.piece[fromI][fromJ] = new Queen(this.table[fromI][fromJ], color)
+                    break;
+                case 'Bishop':
+                    this.piece[fromI][fromJ] = new Bishop(this.table[fromI][fromJ], color)
+                    break;
+                case 'Knight':
+                    this.piece[fromI][fromJ] = new Knight(this.table[fromI][fromJ], color)
+                    break;
+                case 'Rook':
+                    this.piece[fromI][fromJ] = new Rook(this.table[fromI][fromJ], color)
+                    break;
+                case 'Pawn':
+                    this.piece[fromI][fromJ] = new Pawn(this.table[fromI][fromJ], color)
+                    break;
+                default:
+                    break;
+            }
+            this[this.piece[fromI][fromJ].color == 'black' ? 'firstPlayer' : 'secondPlayer'].addScore(-this.piece[fromI][fromJ].getPoints())
         }
 
         if ((toJ == 1 || toJ == 6) && this.piece[toI][toJ] instanceof Pawn) {
             this.piece[toI][toJ].firstMove = true
         }
 
-        document.getElementsByClassName('undo')[0].disabled = true
+        this.backup.pop()
+
+        if (this.backup.length == 1) {
+            $('.undo').attr('disabled', true)
+        }
+
+        localStorage.setItem('savedMoves', JSON.stringify(this.backup))
     }
 }
 
 class Piece {
-    constructor(square = document.body, color) {
+    constructor($square = $('body'), color) {
         let className = this.constructor.name.toLowerCase()
 
-        let div = document.createElement('div')
-
-        div.classList.add(color)
-
-        div.classList.add('piece')
-
-        this.node = square.appendChild(div)
+        this.$node = $('<div>').addClass(color + ' piece ' + className).appendTo($square)
 
         this.color = color
 
-        let img = document.createElement('img')
-
-        img.classList.add('image')
-
-        let src = 'https://github.com/HenriettaSzasz/JavaScript/blob/master/Chess%20Game/images/' + color + '_' + className + '.png' + '?raw=true'
-        let alt = color + ' ' + className
-
-        img.setAttribute('src', src)
-        img.setAttribute('alt', alt)
-
-        this.node.appendChild(img)
+        $('<img>').addClass('image').attr('src', 'https://github.com/HenriettaSzasz/JavaScript/blob/master/Chess%20Game/images/' + color + '_' + className + '.png' + '?raw=true').attr('alt', color + ' ' + className).appendTo(this.$node)
     }
 
     moveDiag(i, j, pieces, round) {
@@ -660,8 +614,8 @@ class Rook extends Piece {
 }
 
 class Pawn extends Piece {
-    constructor(square = document.body, color) {
-        super(square, color)
+    constructor($square = $('body'), color) {
+        super($square, color)
         this.firstMove = true
     }
     canMove(i, j, pieces, round) {
@@ -700,44 +654,30 @@ class Pawn extends Piece {
 }
 
 class Player {
-    constructor(board = document.body, name, color) {
-        this.name = name
-        this.color = color
+    constructor($board = $('body'), name, color) {
         this.score = 0
 
-        let div = document.createElement('button')
-
-        div.classList.add('player')
-
-        div.classList.add(color)
-
-        this.node = board.appendChild(div)
-
-        this.node.innerText = this.score
+        this.$node = $('<button>').addClass('player ' + color).text(this.score).appendTo($board)
     }
 
     addScore(points) {
         this.score += points
-        this.node.innerText = this.score
+        this.$node.text(this.score)
     }
 
     won() {
-        this.node.innerText = 'WINNER'
+        this.$node.text('WINNER')
         setTimeout(() => {
-            application.main.dispatchEvent(new Event('endGame'))
+            application.$main.trigger('endGame')
         })
     }
 }
 
-class App {
+class Game {
     constructor() {
-        let div = document.createElement('div')
+        this.$main = $('<div>').addClass('main').appendTo($('body'))
 
-        div.classList.add('main')
-
-        this.main = document.body.appendChild(div)
-
-        this.main.addEventListener('endGame', () => {
+        this.$main.on('endGame', () => {
             if (confirm('Restart game?')) {
                 this.restartGame()
             }
@@ -745,7 +685,7 @@ class App {
 
         this.createMenu()
     }
-    startApp() {
+    startGame() {
         let backup = []
         let item = null
         item = localStorage.getItem('savedMoves')
@@ -759,64 +699,42 @@ class App {
             }
         }
 
-        this.table = new Table(this.main, backup)
+        this.table = new Table(this.$main, backup)
 
-        this.timer = new Timer(this.main)
+        this.timer = new Timer(this.$main)
 
         this.timer.setMaxTime(0)
 
-        this.timer.startTimer(this.table.node)
+        this.timer.startTimer(this.table.$node)
     }
 
     restartGame() {
-        this.main.removeChild(this.table.node)
-        this.main.removeChild(this.table.board)
-        this.table = new Table(this.main, [])
-        this.table.createBoard(this.main)
-        this.timer.startTimer(this.table.node)
+        this.table.$board.remove()
+        this.table.$node.remove()
+        this.table = new Table(this.$main, [])
+        this.timer.startTimer(this.table.$node)
     }
 
     createMenu() {
-        let div = document.createElement('div')
+        const $menu = $('<div>').addClass('menu').appendTo(this.$main)
 
-        div.classList.add('menu')
+        const $button = $('<button>').addClass('button').text('??').appendTo($menu)
 
-        let menu = this.main.appendChild(div)
+        const $restart = $('<button>').addClass('button').text('Restart game').appendTo($menu)
 
-        let button = menu.appendChild(document.createElement('button'))
-
-        button.classList.add('button')
-
-        button.innerText = '??'
-
-        button = menu.appendChild(document.createElement('button'))
-
-        button.classList.add('button')
-
-        button.innerText = 'Restart game'
-
-        button.addEventListener('click', () => {
+        $restart.click(() => {
             if (confirm('Are U sure?'))
                 this.restartGame()
         })
 
-        button = menu.appendChild(document.createElement('button'))
+        const $undo = $('<button>').addClass('button undo').text('Undo last move').attr('disabled', true).appendTo($menu)
 
-        button.classList.add('button')
-
-        button.classList.add('undo')
-
-        button.disabled = true
-
-        button.innerText = 'Undo last move'
-
-        button.addEventListener('click', () => {
+        $undo.click(() => {
             this.table.undo()
         })
     }
 }
 
-window.application = new App()
+window.game = new Game()
 
-application.startApp()
-
+game.startGame()
