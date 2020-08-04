@@ -28,7 +28,9 @@ class Timer {
 
 class Table {
     constructor($main = $('body'), backup) {
-        this.$node = $('<div>').appendTo($main)
+        const $table = $('<div>').addClass('table').appendTo($main)
+
+        this.$node = $('<div>').attr('id','tableContainer').appendTo($table)
 
         this.$node.on('timesUp', () => {    // when counter stops
             this.createPieces()
@@ -37,7 +39,7 @@ class Table {
             if (backup.length > 0)
                 this.doBackup(backup)
 
-            this.$node.css('display', 'block')
+            this.$node.css('display', 'inline-block')
             this.$board.css('display', 'flex')
         })
 
@@ -50,6 +52,16 @@ class Table {
         this.round = 'white'
 
         this.kingsPosition = { 'white': [4, 0], 'black': [4, 7] }
+                $square.on('dragstart drop click', (event) => {
+                    this.select(event)
+                })
+
+                $square.droppable({
+                    accept : '#draggable'})
+
+                $square.droppable('disable')
+
+                this.table[i][j] = $square
 
         this.$lastSelected = null
     }
@@ -237,7 +249,7 @@ class Table {
             this.$lastTaken = null
         }
 
-        this.table[fromI][fromJ].children().first().remove().appendTo(this.table[toI][toJ])
+        this.table[fromI][fromJ].children().first().appendTo(this.table[toI][toJ])
     }
 
     highlightMove(positions) {
@@ -250,6 +262,7 @@ class Table {
             else if (this.piece[i][j].color != this.round) {
                 this.table[i][j].addClass('highlighted red').css('backgroundColor', 'rgba(255, 0, 0, 0.5)')
             }
+            this.table[i][j].droppable('enable')
         });
     }
 
@@ -334,6 +347,7 @@ class Table {
     }
 
     changePlayer() {
+        $('.' + this.round + '.piece').children('.image').draggable('disable')
         if (this.round == 'white') {
             this.round = 'black'
             this.firstPlayer.$node.css('transform', 'scale(0.8)')
@@ -344,6 +358,7 @@ class Table {
             this.secondPlayer.$node.css('transform', 'scale(0.9)')
             this.firstPlayer.$node.css('transform', 'scale(1.2)')
         }
+        $('.' + this.round + '.piece').children('.image').draggable('enable')
     }
 
     doBackup(moves) {
@@ -390,7 +405,7 @@ class Table {
         const color = this.backup[this.backup.length - 1][4]
         const type = this.backup[this.backup.length - 1][5]
 
-        this.table[fromI][fromJ].children().first().remove().appendTo(this.table[toI][toJ])
+        this.table[fromI][fromJ].children().first().appendTo(this.table[toI][toJ])
 
         this.piece[toI][toJ] = this.piece[fromI][fromJ]
         this.piece[fromI][fromJ] = null
@@ -398,8 +413,6 @@ class Table {
         if (this.piece[toI][toJ] instanceof King) {
             this.kingsPosition[this.piece[toI][toJ].color] = [toI, toJ]
         }
-
-        this.changePlayer()
 
         if (color != null) {
             this.table[fromI][fromJ].children().first().remove()
@@ -432,14 +445,19 @@ class Table {
         if ((toJ == 1 || toJ == 6) && this.piece[toI][toJ] instanceof Pawn) {
             this.piece[toI][toJ].firstMove = true
         }
+        
+
+        this.changePlayer()
 
         this.backup.pop()
 
+        this.backup[0] = [this.round, this.firstPlayer.score, this.secondPlayer.score]
+
+        localStorage.setItem('savedMoves', JSON.stringify(this.backup))
+        
         if (this.backup.length == 1) {
             $('.undo').attr('disabled', true)
         }
-
-        localStorage.setItem('savedMoves', JSON.stringify(this.backup))
     }
 }
 
@@ -451,7 +469,21 @@ class Piece {
 
         this.color = color
 
-        $('<img>').addClass('image').attr('src', 'https://github.com/HenriettaSzasz/JavaScript/blob/master/Chess%20Game/images/' + color + '_' + className + '.png' + '?raw=true').attr('alt', color + ' ' + className).appendTo(this.$node)
+        const $img = $('<img>').addClass('image').attr('src', 'https://github.com/HenriettaSzasz/JavaScript/blob/master/Chess%20Game/images/' + color + '_' + className + '.png' + '?raw=true').attr('alt', color + ' ' + className).appendTo(this.$node)    
+    
+        $img.attr('id', 'draggable').draggable({
+            containment : '#tableContainer', 
+            revert: true, 
+            revertDuration: 0,
+            zIndex : 1,
+            snap : '.square'})
+
+        if(color == 'black'){
+            $img.draggable('disable')
+        }
+        else{
+            $img.draggable('enable')
+        }
     }
 
     moveDiag(i, j, pieces, round) {
