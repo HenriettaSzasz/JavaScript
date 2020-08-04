@@ -1,5 +1,5 @@
 class Timer {
-    constructor($main = $('body')) {
+    constructor($main = $('body')) { // the paramater is the parent node
         this.maxTime = 5
 
         this.$node = $('<div>').addClass('counter').appendTo($main)
@@ -13,8 +13,8 @@ class Timer {
             this.$node.find('p').text(i--)
             if (i < 0) {
                 this.stopTimer()
-                this.$node.css('display', 'none')
-                $table.trigger('timesUp')
+                this.$node.css('display', 'none') // hide counter
+                $table.trigger('timesUp')     // trigger event on table
             }
         }, 1000)
     }
@@ -30,7 +30,7 @@ class Table {
     constructor($main = $('body'), backup) {
         this.$node = $('<div>').appendTo($main)
 
-        this.$node.on('timesUp', () => {
+        this.$node.on('timesUp', () => {    // when counter stops
             this.createPieces()
             this.createBoard($main)
 
@@ -44,56 +44,23 @@ class Table {
         this.$node.css('display', 'none')
 
         this.createSquares()
-        this.$lastSelected = null
+
+        this.backup = backup
 
         this.round = 'white'
 
         this.kingsPosition = { 'white': [4, 0], 'black': [4, 7] }
 
-        this.backup = backup
-
-        this.lastTaken = null
-        this.lastTakenPiece = null
-    }
-
-    createSquares() {
-        this.table = []
-        this.piece = []
-        for (let i = 0; i < 8; i++) {
-
-            this.table[i] = []
-            this.piece[i] = []
-
-            const $row = $('<div>').addClass('row').appendTo(this.$node)
-
-            for (let j = 0; j < 8; j++) {
-                let squareColor = ''
-                if ((i + j) % 2 == 0) {
-                    squareColor = 'black'
-                }
-                else {
-                    squareColor = 'white'
-                }
-
-                const $square = $('<div>').addClass('square ' + squareColor).attr('data-i', i).attr('data-j', j).appendTo($row)
-
-                $square.click(() => {
-                    this.select(event)
-                })
-                this.table[i][j] = $square
-
-                this.piece[i][j] = null
-            }
-        }
+        this.$lastSelected = null
     }
 
     select(event) {
-
         const i = event.currentTarget.getAttribute('data-i')
         const j = event.currentTarget.getAttribute('data-j')
 
-        let selectedPiece = this.piece[i][j]
-        let $selectedSquare = this.table[i][j]
+        const selectedPiece = this.piece[i][j]
+        const $selectedSquare = this.table[i][j]
+
         let isLegalMove = false
         let isYourPiece = false
 
@@ -106,66 +73,67 @@ class Table {
         }
 
         this.removeHighlights()
-        if (this.$lastSelected != null && (selectedPiece == null || selectedPiece != null && isYourPiece == false)) {
-            if (isLegalMove == true) {
-                if (this.piece[this.lastI][this.lastJ] instanceof King) {
-                    this.kingsPosition[this.round] = [i, j]
-                }
-                let currentPiece = null
-                if (this.piece[i][j] != null)
-                    currentPiece = Object.assign(Object.create(Object.getPrototypeOf(this.piece[i][j])), this.piece[i][j])
 
-                let lastPiece = null
-
-                if (this.piece[this.lastI][this.lastJ] != null)
-                    lastPiece = Object.assign(Object.create(Object.getPrototypeOf(this.piece[this.lastI][this.lastJ])), this.piece[this.lastI][this.lastJ])
-
-                this.piece[i][j] = lastPiece
-                this.piece[this.lastI][this.lastJ] = null
-
-                if (this.check() == false) {
-
-                    this.movePiece(this.lastI, this.lastJ, i, j)
-
-                    if (this.checkMate()) {
-                        this[this.round == 'white' ? 'firstPlayer' : 'secondPlayer'].won();
-                    }
-                    else if (currentPiece != null) {
-                        this.lastTakenPiece = currentPiece
-                        this[this.round == 'white' ? 'firstPlayer' : 'secondPlayer'].addScore(currentPiece.getPoints())
-                    }
-                    else {
-                        this.lastTakenPiece = null
-                    }
-
-                    this.piece[i][j].firstMove = false
-
-                    this.changePlayer()
-
-                    this.backup[0] = [this.round, this.firstPlayer.score, this.secondPlayer.score]
-
-                    this.backup.push([this.lastI, this.lastJ, i, j, this.lastTakenPiece == null ? null : this.lastTakenPiece.color, this.lastTakenPiece == null ? null : this.lastTakenPiece.constructor.name])
-
-                    localStorage.setItem('savedMoves', JSON.stringify(this.backup))
-
-                    $('.undo').attr('disabled', false)
-                }
-                else {
-                    if (lastPiece instanceof King) {
-                        this.kingsPosition[this.round] = [this.lastI, this.lastJ]
-                    }
-
-                    this.piece[i][j] = currentPiece
-                    this.piece[this.lastI][this.lastJ] = lastPiece
-                }
-            }
-
+        if (this.$lastSelected != null && isLegalMove == true) {  
             this.$lastSelected = null
-        }
-        else if (selectedPiece != null && isYourPiece == true) {
-            if (this.$lastSelected != null) {
-                this.$lastSelected.css('backgroundColor', 'transparent')
+            if (this.piece[this.lastI][this.lastJ] instanceof King) { // if the King moves, change its position
+                this.kingsPosition[this.round] = [i, j]
             }
+            let currentPiece = null                  // copy of the piece to be taken
+            if (this.piece[i][j] != null)
+                currentPiece = Object.assign(Object.create(Object.getPrototypeOf(this.piece[i][j])), this.piece[i][j])
+
+            let lastPiece = null                            //  copy of the piece to move
+            if (this.piece[this.lastI][this.lastJ] != null)
+                lastPiece = Object.assign(Object.create(Object.getPrototypeOf(this.piece[this.lastI][this.lastJ])), this.piece[this.lastI][this.lastJ])
+
+            this.piece[i][j] = lastPiece                // make a "fake" move to check if the king is still threatened
+            this.piece[this.lastI][this.lastJ] = null
+
+            if (this.check() == false) {                      // if the move is safe (the king is not threatened)
+
+                this.movePiece(this.lastI, this.lastJ, i, j)    // move the piece on table
+
+                if (this.checkMate()) {                              // check if opponent has any possible moves
+                    this[this.round == 'white' ? 'firstPlayer' : 'secondPlayer'].won()
+                    this.changePlayer() 
+                }
+                else if (currentPiece != null) {                        // a piece was taken
+                    this[this.round == 'white' ? 'firstPlayer' : 'secondPlayer'].addScore(currentPiece.getPoints())
+                }
+                
+                if (lastPiece.firstMove == true) {     // if the Pawn moves for the first time, he can make two steps
+                    lastPiece.firstMove = false
+                }
+
+                this.backup[0] = [this.round, this.firstPlayer.score, this.secondPlayer.score]
+
+                this.backup.push([this.lastI, this.lastJ, i, j, currentPiece == null ? null : currentPiece.color, currentPiece == null ? null : currentPiece.constructor.name])
+
+                if(lastPiece instanceof Pawn && this.promotion(j)){
+                    this.table[i][j].children().first().remove()
+                    this.piece[i][j] = new Queen(this.table[i][j], this.round)
+
+                    this.backup.push([i, j, i, j, lastPiece == null ? null : lastPiece.color, lastPiece == null ? null : lastPiece.constructor.name])
+                }
+
+                localStorage.setItem('savedMoves', JSON.stringify(this.backup)) // save the current player's round, the scores and the moves taken so far
+
+                $('.undo').attr('disabled', false)  // enable the undo button
+
+                this.changePlayer()                 // switch players
+            }
+            else {                 // if the move is not safe, undo the "fake" move
+                if (lastPiece instanceof King) {
+                    this.kingsPosition[this.round] = [this.lastI, this.lastJ]
+                }
+
+                this.piece[i][j] = currentPiece
+                this.piece[this.lastI][this.lastJ] = lastPiece
+            }
+        }
+        else if (isYourPiece == true) {   //    clicks on a piece that is your color, select it
+
             this.$lastSelected = this.piece[i][j].$node
 
             this.lastI = i
@@ -173,9 +141,12 @@ class Table {
 
             this.table[i][j].children().first().addClass('selected').css('backgroundColor', 'yellow')
 
-            let moveTo = this.piece[i][j].canMove(+i, +j, this.piece, this.round)
+            let moveTo = this.piece[i][j].canMove(+i, +j, this.piece, this.round)       // checks possible moves
 
-            this.highlightMove(moveTo)
+            this.highlightMove(moveTo)          // highlight possible moves
+        }
+        else{
+            this.$lastSelected = null
         }
     }
 
@@ -252,6 +223,12 @@ class Table {
         return false
     }
 
+    promotion(column){
+        if(this.round == 'white' && column == 7 || this.round == 'black' && column == 0)
+            return true
+        return false
+    }
+
     movePiece(fromI, fromJ, toI, toJ) {
         if (this.table[toI][toJ].children().length > 0) {
             this.$lastTaken = this.table[toI][toJ].children().first().remove()
@@ -267,7 +244,7 @@ class Table {
         positions.forEach(element => {
             let i = element[0]
             let j = element[1]
-            if (this.table[i][j].children().length == 0) {
+            if (this.table[i][j].children('.piece').length == 0) {
                 $('<div>').addClass('highlighted square').css('backgroundColor', 'rgba(255, 255, 0, 0.5)').appendTo(this.table[i][j])
             }
             else if (this.piece[i][j].color != this.round) {
@@ -286,6 +263,37 @@ class Table {
         $('.highlighted.red').removeClass('highlighted red')
 
         $('.highlighted').remove()
+    }
+
+    createSquares() {
+        this.table = []
+        this.piece = []
+        for (let i = 0; i < 8; i++) {
+
+            this.table[i] = []
+            this.piece[i] = []
+
+            const $row = $('<div>').addClass('row').appendTo(this.$node)
+
+            for (let j = 0; j < 8; j++) {
+                let squareColor = ''
+                if ((i + j) % 2 == 0) {
+                    squareColor = 'black'
+                }
+                else {
+                    squareColor = 'white'
+                }
+
+                const $square = $('<div>').addClass('square ' + squareColor).attr('data-i', i).attr('data-j', j).appendTo($row)
+
+                $square.click(() => {
+                    this.select(event)
+                })
+                this.table[i][j] = $square
+
+                this.piece[i][j] = null
+            }
+        }
     }
 
     createPieces() {
@@ -355,8 +363,14 @@ class Table {
                 this.piece[toI][toJ] = this.piece[fromI][fromJ]
                 this.piece[fromI][fromJ] = null
 
+                this.piece[toI][toJ].firstMove = false
+
                 if (this.piece[toI][toJ] instanceof King) {
                     this.kingsPosition[this.piece[toI][toJ].color] = [toI, toJ]
+                }
+
+                if(this.piece[toI][toJ] instanceof Pawn && (toJ == 1 || toJ == 6)){
+                    this.piece[toI][toJ].firstMove = true
                 }
             }
 
@@ -388,6 +402,8 @@ class Table {
         this.changePlayer()
 
         if (color != null) {
+            this.table[fromI][fromJ].children().first().remove()
+            
             switch (type) {
                 case 'King':
                     this.piece[fromI][fromJ] = new King(this.table[fromI][fromJ], color)
@@ -542,8 +558,8 @@ class King extends Piece {
                 moves.push([i - 1, j])
         }
         if (j < 7 && i < 7) {
-            if (pieces[i][j + 1] == null || (pieces[i][j + 1] != null && pieces[i][j + 1].color != round))
-                moves.push([i, j + 1])
+            if (pieces[i + 1][j + 1] == null || (pieces[i + 1][j + 1] != null && pieces[i + 1][j + 1].color != round))
+                moves.push([i + 1, j + 1])
         }
         if (j > 0 && i > 0) {
             if (pieces[i - 1][j - 1] == null || (pieces[i - 1][j - 1] != null && pieces[i - 1][j - 1].color != round))
