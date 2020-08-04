@@ -52,16 +52,6 @@ class Table {
         this.round = 'white'
 
         this.kingsPosition = { 'white': [4, 0], 'black': [4, 7] }
-                $square.on('dragstart drop click', (event) => {
-                    this.select(event)
-                })
-
-                $square.droppable({
-                    accept : '#draggable'})
-
-                $square.droppable('disable')
-
-                this.table[i][j] = $square
 
         this.$lastSelected = null
     }
@@ -242,12 +232,7 @@ class Table {
     }
 
     movePiece(fromI, fromJ, toI, toJ) {
-        if (this.table[toI][toJ].children().length > 0) {
-            this.$lastTaken = this.table[toI][toJ].children().first().remove()
-        }
-        else {
-            this.$lastTaken = null
-        }
+        this.table[toI][toJ].children().first().remove()
 
         this.table[fromI][fromJ].children().first().appendTo(this.table[toI][toJ])
     }
@@ -299,9 +284,15 @@ class Table {
 
                 const $square = $('<div>').addClass('square ' + squareColor).attr('data-i', i).attr('data-j', j).appendTo($row)
 
-                $square.click(() => {
+                $square.on('dragstart drop click', (event) => {
                     this.select(event)
                 })
+
+                $square.droppable({
+                    accept : '#draggable'})
+
+                $square.droppable('disable')
+
                 this.table[i][j] = $square
 
                 this.piece[i][j] = null
@@ -374,18 +365,26 @@ class Table {
                 let toI = element[2]
                 let toJ = element[3]
 
+                const color = this.backup[this.backup.length - 1][4]
+                const type = this.backup[this.backup.length - 1][5]
+
                 this.movePiece(fromI, fromJ, toI, toJ)
                 this.piece[toI][toJ] = this.piece[fromI][fromJ]
                 this.piece[fromI][fromJ] = null
-
-                this.piece[toI][toJ].firstMove = false
 
                 if (this.piece[toI][toJ] instanceof King) {
                     this.kingsPosition[this.piece[toI][toJ].color] = [toI, toJ]
                 }
 
-                if(this.piece[toI][toJ] instanceof Pawn && (toJ == 1 || toJ == 6)){
-                    this.piece[toI][toJ].firstMove = true
+                if (color != null) {
+                    this.newPiece(toI, toJ, color, type)
+                }
+
+                if(this.piece[toI][toJ] instanceof Pawn){
+                    if(toJ == 1 || toJ == 6)
+                        this.piece[toI][toJ].firstMove = true
+                    else
+                        this.piece[toI][toJ].firstMove = false
                 }
             }
 
@@ -395,6 +394,8 @@ class Table {
     }
 
     undo() {
+        let repeat = false
+
         this.removeHighlights()
 
         const fromI = this.backup[this.backup.length - 1][2]
@@ -414,50 +415,63 @@ class Table {
             this.kingsPosition[this.piece[toI][toJ].color] = [toI, toJ]
         }
 
+        if(this.table[fromI][fromJ].children().length > 0){
+            repeat = true
+        }
+
         if (color != null) {
-            this.table[fromI][fromJ].children().first().remove()
-            
-            switch (type) {
-                case 'King':
-                    this.piece[fromI][fromJ] = new King(this.table[fromI][fromJ], color)
-                    break;
-                case 'Queen':
-                    this.piece[fromI][fromJ] = new Queen(this.table[fromI][fromJ], color)
-                    break;
-                case 'Bishop':
-                    this.piece[fromI][fromJ] = new Bishop(this.table[fromI][fromJ], color)
-                    break;
-                case 'Knight':
-                    this.piece[fromI][fromJ] = new Knight(this.table[fromI][fromJ], color)
-                    break;
-                case 'Rook':
-                    this.piece[fromI][fromJ] = new Rook(this.table[fromI][fromJ], color)
-                    break;
-                case 'Pawn':
-                    this.piece[fromI][fromJ] = new Pawn(this.table[fromI][fromJ], color)
-                    break;
-                default:
-                    break;
-            }
-            this[this.piece[fromI][fromJ].color == 'black' ? 'firstPlayer' : 'secondPlayer'].addScore(-this.piece[fromI][fromJ].getPoints())
+            this.newPiece(fromI, fromJ, color, type)
         }
 
         if ((toJ == 1 || toJ == 6) && this.piece[toI][toJ] instanceof Pawn) {
             this.piece[toI][toJ].firstMove = true
         }
-        
-
-        this.changePlayer()
 
         this.backup.pop()
 
         this.backup[0] = [this.round, this.firstPlayer.score, this.secondPlayer.score]
 
         localStorage.setItem('savedMoves', JSON.stringify(this.backup))
+
+        this.changePlayer()
         
         if (this.backup.length == 1) {
             $('.undo').attr('disabled', true)
         }
+
+        if(repeat){
+            this.undo()
+            this.changePlayer()
+        }
+    }
+
+    newPiece(i, j, color, type){
+        this.table[i][j].children().first().remove()
+        
+        switch (type) {
+            case 'King':
+                this.piece[i][j] = new King(this.table[i][j], color)
+                break;
+            case 'Queen':
+                this.piece[i][j] = new Queen(this.table[i][j], color)
+                break;
+            case 'Bishop':
+                this.piece[i][j] = new Bishop(this.table[i][j], color)
+                break;
+            case 'Knight':
+                this.piece[i][j] = new Knight(this.table[i][j], color)
+                break;
+            case 'Rook':
+                this.piece[i][j] = new Rook(this.table[i][j], color)
+                break;
+            case 'Pawn':
+                this.piece[i][j] = new Pawn(this.table[i][j], color)
+                break;
+            default:
+                break;
+        }
+
+        this[this.piece[i][j].color == 'black' ? 'firstPlayer' : 'secondPlayer'].addScore(-this.piece[i][j].getPoints())
     }
 }
 
@@ -687,10 +701,10 @@ class Pawn extends Piece {
             moves.push([i - 1, j - 1])
         }
         if (this.firstMove) {
-            if (j < 6 && pieces[i][j + 2] == null && pieces[i][j + 1] == null) {
+            if (j < 6 && pieces[i][j + 2] == null && pieces[i][j + 1] == null && round == 'white') {
                 moves.push([i, j + 2])
             }
-            if (j > 1 && pieces[i][j - 2] == null && pieces[i][j - 1] == null) {
+            if (j > 1 && pieces[i][j - 2] == null && pieces[i][j - 1] == null && round == 'black') {
                 moves.push([i, j - 2])
             }
         }
