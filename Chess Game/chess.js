@@ -110,16 +110,19 @@ class Table {
 
                 this.backup[0] = [this.round == 'white' ? 'black' : 'white', this.firstPlayer.score, this.secondPlayer.score]   // first element of backup is the next round, and the scores
 
-                this.backup.push([this.lastI, this.lastJ, i, j, currentPiece == null ? null : currentPiece.color, currentPiece == null ? null : currentPiece.constructor.name]) //  push the current move 
+                this.backup.push({ from: { x: this.lastJ, y: this.lastI }, to: { x: j, y: i }, piece: { color: currentPiece == null ? null : currentPiece.color, type: currentPiece == null ? null : currentPiece.constructor.name } })
 
                 if (lastPiece instanceof Pawn && this.promotion(j)) {           // the pawn reached the end of the table
                     this.table[i][j].children().first().remove()
                     this.piece[i][j] = new Queen(this.table[i][j], this.round)      // gets promoted to Queen
 
-                    this.backup.push([i, j, i, j, lastPiece == null ? null : lastPiece.color, lastPiece == null ? null : lastPiece.constructor.name])   // push move to same position, just to replace the pawn
+                    this.backup.push({ from: { x: j, y: i }, to: { x: j, y: i }, piece: { color: lastPiece == null ? null : lastPiece.color, type: lastPiece == null ? null : lastPiece.constructor.name } })
                 }
 
                 localStorage.setItem('savedMoves', JSON.stringify(this.backup)) // save the current player's round, the scores and the moves taken so far
+
+                if (game.isOnline)
+                    game.post(this.lastI, this.lastJ, i, j, lastPiece == null ? null : lastPiece.color, lastPiece == null ? null : lastPiece.constructor.name, this.round == 'white' ? 'black' : 'white')
 
                 $('.undo').attr('disabled', false)  // enable the undo button
 
@@ -235,8 +238,6 @@ class Table {
         this.table[toI][toJ].children().first().remove()
 
         this.table[fromI][fromJ].children().first().appendTo(this.table[toI][toJ])
-
-        game.post(fromI, fromJ, toI, toJ)
     }
 
     highlightMove(positions) {
@@ -368,32 +369,7 @@ class Table {
                 }
             }
             else {
-                let fromI = element[0]
-                let fromJ = element[1]
-                let toI = element[2]
-                let toJ = element[3]
-
-                const color = element[4]
-                const type = element[5]
-
-                this.movePiece(fromI, fromJ, toI, toJ)
-                this.piece[toI][toJ] = this.piece[fromI][fromJ]
-                this.piece[fromI][fromJ] = null
-
-                if (this.piece[toI][toJ] instanceof King) {
-                    this.kingsPosition[this.piece[toI][toJ].color] = [toI, toJ]
-                }
-
-                if (color != null && fromI == toI && fromJ == toJ) {
-                    this.newPiece(toI, toJ, color, 'Queen')
-                }
-
-                if (this.piece[toI][toJ] instanceof Pawn) {
-                    if (toJ == 1 || toJ == 6)
-                        this.piece[toI][toJ].firstMove = true
-                    else
-                        this.piece[toI][toJ].firstMove = false
-                }
+                this.redoMove(element)
             }
 
         })
@@ -401,18 +377,49 @@ class Table {
             $('.undo').attr('disabled', false)
     }
 
+    redoMove(element) {
+        const fromI = element.from.y
+        const fromJ = element.from.x
+        const toI = element.to.y
+        const toJ = element.to.x
+
+        const color = element.piece.color
+        const type = element.piece.type
+
+        this.movePiece(fromI, fromJ, toI, toJ)
+        this.piece[toI][toJ] = this.piece[fromI][fromJ]
+        this.piece[fromI][fromJ] = null
+
+        if (this.piece[toI][toJ] instanceof King) {
+            this.kingsPosition[this.piece[toI][toJ].color] = [toI, toJ]
+        }
+
+        if (color != null && fromI == toI && fromJ == toJ) {
+            this.newPiece(toI, toJ, color, 'Queen')
+        }
+
+        if (this.piece[toI][toJ] instanceof Pawn) {
+            if (toJ == 1 || toJ == 6)
+                this.piece[toI][toJ].firstMove = true
+            else
+                this.piece[toI][toJ].firstMove = false
+        }
+    }
+
     undo() {
         let repeat = false
 
+        const element = this.backup.pop()
+
         this.removeHighlights()
 
-        const fromI = this.backup[this.backup.length - 1][2]
-        const fromJ = this.backup[this.backup.length - 1][3]
-        const toI = this.backup[this.backup.length - 1][0]
-        const toJ = this.backup[this.backup.length - 1][1]
+        const fromI = element.to.y
+        const fromJ = element.to.x
+        const toI = element.from.y
+        const toJ = element.from.x
 
-        const color = this.backup[this.backup.length - 1][4]
-        const type = this.backup[this.backup.length - 1][5]
+        const color = element.piece.color
+        const type = element.piece.type
 
         this.table[fromI][fromJ].children().first().appendTo(this.table[toI][toJ])
 
@@ -439,8 +446,6 @@ class Table {
         }
 
         this.changePlayer()
-
-        this.backup.pop()
 
         this.backup[0] = [this.round, this.firstPlayer.score, this.secondPlayer.score]
 
@@ -747,6 +752,10 @@ class Player {
 
 class Game {
     constructor() {
+        this.backup = []
+
+        this.isOnline = false
+
         this.$main = $('<div>').addClass('main').appendTo($('body'))
 
         this.$main.click(() => {
@@ -759,13 +768,26 @@ class Game {
             }
         })
 
-        this.createMenu()
+        this.createStart()
+    }
 
-        this.startGame()
+    startOnlineGame() {
+        this.ID = null
 
-        this.ID = localStorage.getItem('gameID') // jocul 7!!
+        this.isOnline = true
 
-        if (this.ID === null) {
+        this.ID = localStorage.getItem('gameID') // jocul 7 / 43
+
+        //this.ID = 7
+
+        if (this.ID != null && confirm('Reload game?')) {
+            $.ajax({
+                url: 'https://chess.thrive-dev.bitstoneint.com/wp-json/chess-api/game/' + this.ID
+            }).done((data) => {
+                this.backup = data.moves
+            })
+        }
+        else {
             $.ajax({
                 method: 'POST',
                 url: 'https://chess.thrive-dev.bitstoneint.com/wp-json/chess-api/game',
@@ -777,49 +799,37 @@ class Game {
             })
         }
 
-        //setInterval(this.get.bind(this), 1000)
+        setInterval(this.get.bind(this), 1000)
+
+        this.startGame()
     }
 
-    get() {
-        $.ajax({
-            url: 'https://chess.thrive-dev.bitstoneint.com/wp-json/chess-api/game/' + this.ID
-        }).done((data) => {
-            console.log(data.moves)
-        })
-
-    }
-
-    post(fromI, fromJ, toI, toJ) {
-        $.ajax({
-            method : 'POST',
-            url: 'https://chess.thrive-dev.bitstoneint.com/wp-json/chess-api/game/' + this.ID,
-            data : {
-                move : {from : {x : fromJ, y : fromI}, to : {x : toJ, y : toI}, piece : {color, type}}
-            }
-        }).done((data) => {
-            console.log(data)
-        })
-    }
-
-    startGame() {
-        let backup = []
+    startOfflineGame() {
         let item = null
         item = localStorage.getItem('savedMoves')
 
         if (item !== null) {
             if (confirm('Reload game?')) {
-                backup = JSON.parse(item)
+                this.backup = JSON.parse(item)
             }
             else {
                 localStorage.removeItem('savedMoves')
             }
         }
 
-        this.table = new Table(this.$main, backup)
+        this.startGame()
+    }
+
+    startGame() {
+        $('.start').remove()
+
+        this.createMenu()
+
+        this.table = new Table(this.$main, this.backup)
 
         this.timer = new Timer(this.$main)
 
-        this.timer.setMaxTime(0)
+        this.timer.setMaxTime(1)
 
         this.timer.startTimer(this.table.$node)
     }
@@ -831,22 +841,34 @@ class Game {
         this.timer.startTimer(this.table.$node)
     }
 
+    createStart() {
+        const $start = $('<div>').addClass('start popup').appendTo(this.$main)
+
+        $('<button>').text('How would you like to play this game?').appendTo($start)
+
+        const $choose = $('<div>').css('display', 'flex').css('justify-content', 'space-between').appendTo($start)
+
+        $('<button>').text('Online').appendTo($choose).click(this.startOnlineGame.bind(this))
+
+        $('<button>').text('Offline').appendTo($choose).click(this.startOfflineGame.bind(this))
+    }
+
     createMenu() {
         const $menu = $('<div>').addClass('menu').appendTo(this.$main)
 
-        const $random = $('<button>').addClass('button').text('Get a random joke').appendTo($menu)
+        const $random = $('<button>').text('Get a random joke').appendTo($menu)
 
         $random.click(() => {
             $.ajax({
-                url: ' https://sv443.net/jokeapi/v2/joke/any',
+                url: 'https://sv443.net/jokeapi/v2/joke/any',
                 data: {
                     blacklistFlags: 'nsfw'
                 },
                 error: () => {
-                    $('<button>').addClass('button joke').appendTo(this.$main).html('noJokesFoundException: you.')
+                    $('<button>').addClass('joke').appendTo(this.$main).html('noJokesFoundException: you.')
                 }
             }).done((data) => {
-                const $joke = $('<button>').addClass('button joke').appendTo(this.$main)
+                const $joke = $('<button>').addClass('joke popup').appendTo(this.$main)
                 if (data.error == true)
                     $joke.text(data.message)
                 else if (data.joke !== undefined)
@@ -856,17 +878,47 @@ class Game {
             })
         })
 
-        const $restart = $('<button>').addClass('button').text('Restart game').appendTo($menu)
+        const $restart = $('<button>').text('Restart game').appendTo($menu)
 
         $restart.click(() => {
             if (confirm('Are U sure?'))
                 this.restartGame()
         })
 
-        const $undo = $('<button>').addClass('button undo').text('Undo last move').attr('disabled', true).appendTo($menu)
+        const $undo = $('<button>').addClass('undo').text('Undo last move').attr('disabled', true).appendTo($menu)
 
         $undo.click(() => {
             this.table.undo()
+        })
+
+        if (this.isOnline) {
+            $undo.css('display', 'none')
+            $restart.css('display', 'none')
+        }
+    }
+
+    get() {
+        $.ajax({
+            url: 'https://chess.thrive-dev.bitstoneint.com/wp-json/chess-api/game/' + this.ID
+        }).done((data) => {
+            if (data.moves.length > 0) {
+                const lastElement = data.moves.pop()
+                if(lastElement.next == 'white' && this.table.round ==  'white')
+                this.table.redoMove(lastElement)
+                this.table.backup.push(lastElement)
+            }
+        })
+    }
+
+    post(fromI, fromJ, toI, toJ, color, type, next){ 
+        $.ajax({
+            method: 'POST',
+            url: 'https://chess.thrive-dev.bitstoneint.com/wp-json/chess-api/game/' + this.ID,
+            data: {
+                move: { from: { x: fromJ, y: fromI }, to: { x: toJ, y: toI }, piece: { color, type }, next : next}
+            }
+        }).done((data) => {
+            console.log(data)
         })
     }
 }
