@@ -27,7 +27,7 @@ class Timer {
 }
 
 class Table {
-    constructor($main = $('body'), backup) {
+    constructor($main = $('body'), backup, status) {
         const $table = $('<div>').addClass('table').appendTo($main)
 
         this.$node = $('<div>').attr('id', 'tableContainer').appendTo($table)       // container for draggable
@@ -41,15 +41,26 @@ class Table {
 
             this.$node.css('display', 'inline-block')   // show table
             this.$board.css('display', 'flex')          // show board
+
+            if (game.isOnline) {
+                setInterval(() => {
+                    game.get()
+                }, 1000)
+            }
         })
 
         this.$node.css('display', 'none')   // hide until counter stops
 
         this.createSquares()
 
-        this.backup = backup    // copy backup
+        if (this.status != null)
+            this.status = status
+        else
+            this.status = 'white'
 
-        this.round = 'white'    //  white always moves first
+        this.round = 'white'
+
+        this.backup = backup
 
         this.kingsPosition = { 'white': [4, 0], 'black': [4, 7] }   // kings's position
 
@@ -57,6 +68,8 @@ class Table {
     }
 
     select(event) {
+        if (game.isOnline && this.round != game.status)
+            return
         const i = event.currentTarget.getAttribute('data-i')    //event -  click / drag starts / dropped
         const j = event.currentTarget.getAttribute('data-j')
 
@@ -108,21 +121,22 @@ class Table {
                     lastPiece.firstMove = false
                 }
 
-                this.backup[0] = [this.round == 'white' ? 'black' : 'white', this.firstPlayer.score, this.secondPlayer.score]   // first element of backup is the next round, and the scores
+                this.backup.push({ from: { x: this.lastJ, y: this.lastI }, to: { x: j, y: i }, piece: { color: currentPiece == null ? null : currentPiece.color, type: currentPiece == null ? null : currentPiece.constructor.name, points: currentPiece == null ? null : currentPiece.getPoints(), next: this.round == 'white' ? 'black' : 'white' } })
 
-                this.backup.push({ from: { x: this.lastJ, y: this.lastI }, to: { x: j, y: i }, piece: { color: currentPiece == null ? null : currentPiece.color, type: currentPiece == null ? null : currentPiece.constructor.name } })
-
-                if (lastPiece instanceof Pawn && this.promotion(j)) {           // the pawn reached the end of the table
+                if (game.isOnline == false && lastPiece instanceof Pawn && this.promotion(j)) {           // the pawn reached the end of the table
                     this.table[i][j].children().first().remove()
                     this.piece[i][j] = new Queen(this.table[i][j], this.round)      // gets promoted to Queen
 
                     this.backup.push({ from: { x: j, y: i }, to: { x: j, y: i }, piece: { color: lastPiece == null ? null : lastPiece.color, type: lastPiece == null ? null : lastPiece.constructor.name } })
                 }
 
-                localStorage.setItem('savedMoves', JSON.stringify(this.backup)) // save the current player's round, the scores and the moves taken so far
-
                 if (game.isOnline)
-                    game.post(this.lastI, this.lastJ, i, j, lastPiece == null ? null : lastPiece.color, lastPiece == null ? null : lastPiece.constructor.name, this.round == 'white' ? 'black' : 'white')
+                    game.post(this.lastI, this.lastJ, i, j, currentPiece == null ? null : currentPiece.color, currentPiece == null ? null : currentPiece.constructor.name, currentPiece == null ? null : currentPiece.getPoints(), this.round == 'white' ? 'black' : 'white')
+                else {
+                    localStorage.setItem('savedStatus', JSON.stringify(this.round == 'white' ? 'black' : 'white')) // save the current status
+
+                    localStorage.setItem('savedMoves', JSON.stringify(this.backup)) // save the current player's round, the scores and the moves taken so far
+                }
 
                 $('.undo').attr('disabled', false)  // enable the undo button
 
@@ -342,7 +356,8 @@ class Table {
     }
 
     changePlayer() {
-        $('.' + this.round + '.piece').children('.image').draggable('disable')
+        if (game.isOnline == false)
+            $('.' + this.round + '.piece').children('.image').draggable('disable')
         if (this.round == 'white') {
             this.round = 'black'
             this.firstPlayer.$node.css('transform', 'scale(0.8)')
@@ -353,28 +368,24 @@ class Table {
             this.secondPlayer.$node.css('transform', 'scale(0.9)')
             this.firstPlayer.$node.css('transform', 'scale(1.2)')
         }
-        $('.' + this.round + '.piece').children('.image').draggable('enable')
+        if (game.isOnline == false)
+            $('.' + this.round + '.piece').children('.image').draggable('enable')
     }
 
     doBackup(moves) {
-        moves.forEach((element, index) => {
-            if (index == 0) {
-                this.round = element[0]
-                this.firstPlayer.addScore(element[1])
-                this.secondPlayer.addScore(element[2])
-
-                if (this.round == 'black') {
-                    this.round = 'white'
-                    this.changePlayer()
-                }
-            }
-            else {
-                this.redoMove(element)
-            }
-
+        if (game.isOnline)
+            this.round = this.backup[this.backup.length - 1].next
+        else
+            this.round = this.status
+        if (this.round == 'black') {
+            this.round = 'white'
+            this.changePlayer()
+        }
+        moves.forEach((element) => {
+            this.redoMove(element)
         })
-        if (this.backup.length > 1)
-            $('.undo').attr('disabled', false)
+
+        $('.undo').attr('disabled', false)
     }
 
     redoMove(element) {
@@ -384,7 +395,7 @@ class Table {
         const toJ = element.to.x
 
         const color = element.piece.color
-        const type = element.piece.type
+        const points = element.piece.points
 
         this.movePiece(fromI, fromJ, toI, toJ)
         this.piece[toI][toJ] = this.piece[fromI][fromJ]
@@ -397,6 +408,8 @@ class Table {
         if (color != null && fromI == toI && fromJ == toJ) {
             this.newPiece(toI, toJ, color, 'Queen')
         }
+        else if (color != null)
+            this[color == 'black' ? 'firstPlayer' : 'secondPlayer'].addScore(+points)
 
         if (this.piece[toI][toJ] instanceof Pawn) {
             if (toJ == 1 || toJ == 6)
@@ -447,11 +460,9 @@ class Table {
 
         this.changePlayer()
 
-        this.backup[0] = [this.round, this.firstPlayer.score, this.secondPlayer.score]
-
         localStorage.setItem('savedMoves', JSON.stringify(this.backup))
 
-        if (this.backup.length == 1) {
+        if (this.backup.length == 0) {
             $('.undo').attr('disabled', true)
         }
 
@@ -507,12 +518,23 @@ class Piece {
             snap: '.square'
         })
 
-        if (color == 'black') {
-            $img.draggable('disable')
+        if (game.isOnline) {
+            if (color != game.status) {
+                $img.draggable('disable')
+            }
+            else {
+                $img.draggable('enable')
+            }
         }
         else {
-            $img.draggable('enable')
+            if (color != 'white') {
+                $img.draggable('disable')
+            }
+            else {
+                $img.draggable('enable')
+            }
         }
+
     }
 
     moveDiag(i, j, pieces, round) {
@@ -752,9 +774,13 @@ class Player {
 
 class Game {
     constructor() {
+        this.isOnline = false
+
+        this.restart = false
+
         this.backup = []
 
-        this.isOnline = false
+        this.status = null
 
         this.$main = $('<div>').addClass('main').appendTo($('body'))
 
@@ -772,22 +798,15 @@ class Game {
     }
 
     startOnlineGame() {
-        this.ID = null
-
-        this.isOnline = true
-
-        this.ID = localStorage.getItem('gameID') // jocul 7 / 43
-
-        //this.ID = 7
-
-        if (this.ID != null && confirm('Reload game?')) {
+        if (this.ID != null) {
             $.ajax({
+                async: false,
                 url: 'https://chess.thrive-dev.bitstoneint.com/wp-json/chess-api/game/' + this.ID
             }).done((data) => {
                 this.backup = data.moves
             })
         }
-        else {
+        else if (confirm('Create new game?')) {
             $.ajax({
                 method: 'POST',
                 url: 'https://chess.thrive-dev.bitstoneint.com/wp-json/chess-api/game',
@@ -795,28 +814,31 @@ class Game {
                     name: 'new game'
                 }
             }).done((data) => {
-                localStorage.setItem('gameID', data.ID)
+                this.ID = data.ID
             })
         }
-
-        setInterval(this.get.bind(this), 1000)
 
         this.startGame()
     }
 
     startOfflineGame() {
-        let item = null
-        item = localStorage.getItem('savedMoves')
+        let moves = null
+        moves = localStorage.getItem('savedMoves')
 
-        if (item !== null) {
+        let status = null
+        status = localStorage.getItem('savedStatus')
+
+        if (moves !== null && moves.length > 0) {
             if (confirm('Reload game?')) {
-                this.backup = JSON.parse(item)
+                this.backup = JSON.parse(moves)
+                if (status != null)
+                    this.status = JSON.parse(status)
             }
             else {
                 localStorage.removeItem('savedMoves')
+                localStorage.removeItem('savedStatus')
             }
         }
-
         this.startGame()
     }
 
@@ -825,7 +847,7 @@ class Game {
 
         this.createMenu()
 
-        this.table = new Table(this.$main, this.backup)
+        this.table = new Table(this.$main, this.backup, this.status)
 
         this.timer = new Timer(this.$main)
 
@@ -837,8 +859,22 @@ class Game {
     restartGame() {
         this.table.$board.remove()
         this.table.$node.remove()
-        this.table = new Table(this.$main, [])
+        this.backup = []
+        this.table = new Table(this.$main, [], [])
         this.timer.startTimer(this.table.$node)
+
+        if (this.isOnline) {
+            $.ajax({
+                method: 'POST',
+                url: 'https://chess.thrive-dev.bitstoneint.com/wp-json/chess-api/game/' + this.ID,
+                data: {
+                    reset: 1
+                }
+            })
+
+            this.restart = true
+        }
+
     }
 
     createStart() {
@@ -848,9 +884,63 @@ class Game {
 
         const $choose = $('<div>').css('display', 'flex').css('justify-content', 'space-between').appendTo($start)
 
-        $('<button>').text('Online').appendTo($choose).click(this.startOnlineGame.bind(this))
+        $('<button>').text('Online').appendTo($choose).click(() => {
+            this.isOnline = true
+            this.chooseRoom()
+        })
 
-        $('<button>').text('Offline').appendTo($choose).click(this.startOfflineGame.bind(this))
+        $('<button>').text('Offline').appendTo($choose).click(() => {
+            this.startOfflineGame()
+        })
+    }
+
+
+    chooseColor() {
+        $('.start').remove()
+
+        const $start = $('<div>').addClass('start popup').appendTo(this.$main)
+
+        $('<button>').text('Which color would you like to play with?').appendTo($start)
+
+        const $choose = $('<div>').css('display', 'flex').css('justify-content', 'space-between').appendTo($start)
+
+        $('<button>').text('White').addClass('player white').appendTo($choose).click(() => {
+            this.status = 'white'
+            this.startOnlineGame()
+        })
+
+        $('<button>').text('Black').addClass('player black').appendTo($choose).click(() => {
+            this.status = 'black'
+            this.startOnlineGame()
+        })
+    }
+
+    chooseRoom() {
+        $('.start').remove()
+
+        const $start = $('<div>').addClass('start popup').appendTo(this.$main)
+
+        $('<button>').text('Select a room').appendTo($start)
+
+        const $choose = $('<div>').css('display', 'flex').css('justify-content', 'space-between').appendTo($start)
+
+        $.ajax({
+            url: 'https://chess.thrive-dev.bitstoneint.com/wp-json/chess-api/game/'
+        }).done((data) => {
+            $('<button>').text('New game').appendTo($choose).click(() => {
+                this.ID = null
+                this.chooseColor()
+            })
+            $.each(data, (index, value) => {
+                if (value.post_title == 'new game') {
+                    $('<button>').text(value.ID).appendTo($choose).click(() => {
+                        this.ID = value.ID
+                        this.chooseColor()
+                    })
+                }
+            })
+
+        })
     }
 
     createMenu() {
@@ -893,7 +983,6 @@ class Game {
 
         if (this.isOnline) {
             $undo.css('display', 'none')
-            $restart.css('display', 'none')
         }
     }
 
@@ -901,24 +990,28 @@ class Game {
         $.ajax({
             url: 'https://chess.thrive-dev.bitstoneint.com/wp-json/chess-api/game/' + this.ID
         }).done((data) => {
-            if (data.moves.length > 0) {
+            if (data.moves.length != 0 && data.moves.length > this.table.backup.length) {
                 const lastElement = data.moves.pop()
-                if(lastElement.next == 'white' && this.table.round ==  'white')
                 this.table.redoMove(lastElement)
                 this.table.backup.push(lastElement)
+                this.table.changePlayer()
+                this.restart = false
+            }
+            else if (data.moves.length == 0 && this.table.backup.length > 0 && this.restart == false) {
+                this.restartGame()
             }
         })
     }
 
-    post(fromI, fromJ, toI, toJ, color, type, next){ 
+    post(fromI, fromJ, toI, toJ, color, type, points, next) {
         $.ajax({
             method: 'POST',
             url: 'https://chess.thrive-dev.bitstoneint.com/wp-json/chess-api/game/' + this.ID,
             data: {
-                move: { from: { x: fromJ, y: fromI }, to: { x: toJ, y: toI }, piece: { color, type }, next : next}
+                move: { from: { x: fromJ, y: fromI }, to: { x: toJ, y: toI }, piece: { color: color, type: type, points: points }, next: next }
             }
-        }).done((data) => {
-            console.log(data)
+        }).done(() => {
+            this.restart = false
         })
     }
 }
