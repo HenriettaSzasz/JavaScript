@@ -41,6 +41,7 @@ class Table {
 
             this.$node.css('display', 'inline-block')   // show table
             this.$board.css('display', 'flex')          // show board
+            game.$menu.css('display', 'flex')
 
             if (game.isOnline) {
                 setInterval(() => {
@@ -53,7 +54,7 @@ class Table {
 
         this.createSquares()
 
-        if (this.status != null)
+        if (status != null)
             this.status = status
         else
             this.status = 'white'
@@ -358,6 +359,12 @@ class Table {
     changePlayer() {
         if (game.isOnline == false)
             $('.' + this.round + '.piece').children('.image').draggable('disable')
+        else {
+            if (game.status == this.round)
+                $('.' + game.status + '.piece').children('.image').draggable('disable')
+            else
+                $('.' + game.status + '.piece').children('.image').draggable('enable')
+        }
         if (this.round == 'white') {
             this.round = 'black'
             this.firstPlayer.$node.css('transform', 'scale(0.8)')
@@ -784,6 +791,10 @@ class Game {
 
         this.$main = $('<div>').addClass('main').appendTo($('body'))
 
+        const $footer = $('<div>').addClass('footer').appendTo(this.$main)
+
+        $('<a>').addClass('fa fa-github-square').html('  Github').attr('href', 'https://github.com/HenriettaSzasz/JavaScript').attr('target', '_blank').appendTo($footer)
+
         this.$main.click(() => {
             $('.joke').remove()
         })
@@ -851,16 +862,19 @@ class Game {
 
         this.timer = new Timer(this.$main)
 
-        this.timer.setMaxTime(1)
-
         this.timer.startTimer(this.table.$node)
     }
 
     restartGame() {
-        this.table.$board.remove()
-        this.table.$node.remove()
+        this.$main.children().not('.footer').remove()
+
+        this.createMenu()
+
         this.backup = []
         this.table = new Table(this.$main, [], [])
+
+        this.timer = new Timer(this.$main)
+
         this.timer.startTimer(this.table.$node)
 
         if (this.isOnline) {
@@ -874,7 +888,10 @@ class Game {
 
             this.restart = true
         }
-
+        else {
+            localStorage.removeItem('savedMoves')
+            localStorage.removeItem('savedStatus')
+        }
     }
 
     createStart() {
@@ -944,9 +961,9 @@ class Game {
     }
 
     createMenu() {
-        const $menu = $('<div>').addClass('menu').appendTo(this.$main)
+        this.$menu = $('<div>').addClass('menu').css('display', 'none').appendTo(this.$main)
 
-        const $random = $('<button>').text('Get a random joke').appendTo($menu)
+        const $random = $('<button>').text('Get a random joke').appendTo(this.$menu)
 
         $random.click(() => {
             $.ajax({
@@ -968,14 +985,14 @@ class Game {
             })
         })
 
-        const $restart = $('<button>').text('Restart game').appendTo($menu)
+        const $restart = $('<button>').text('Restart game').appendTo(this.$menu)
 
         $restart.click(() => {
             if (confirm('Are U sure?'))
                 this.restartGame()
         })
 
-        const $undo = $('<button>').addClass('undo').text('Undo last move').attr('disabled', true).appendTo($menu)
+        const $undo = $('<button>').addClass('undo').text('Undo last move').attr('disabled', true).appendTo(this.$menu)
 
         $undo.click(() => {
             this.table.undo()
